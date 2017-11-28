@@ -520,7 +520,7 @@ void setup() {
   cmdserver.begin();
 
   // Test
-  openLocalFile(SPIFFS, "/2.mp3");
+  openLocalFile(SPIFFS, "/3.mp3");
 }
 
 /**
@@ -560,6 +560,34 @@ void startWifi() {
 }
 
 
+//******************************************************************************************
+//                             H A N D L E C M D                                           *
+//******************************************************************************************
+// Handling of the various commands from remote (case sensitive). All commands have the    *
+// form "/?parameter[=value]".  Example: "/?volume=50".                                    *
+// The startpage will be returned if no arguments are given.                               *
+// Multiple parameters are ignored.  An extra parameter may be "version=<random number>"   *
+// in order to prevent browsers like Edge and IE to use their cache.  This "version" is    *
+// ignored.                                                                                *
+// Example: "/?upvolume=5&version=0.9775479450590543"                                      *
+// The save and the list commands are handled specially.                                   *
+//******************************************************************************************
+void handleCmd ( AsyncWebServerRequest* request ) {
+  
+  // Get number of arguments
+  int params = request->params();                
+
+  // no params ? then do nothing here
+  if(params == 0) {
+    return;    
+  }
+
+  // read the argument and its value from the first parameter
+  AsyncWebParameter* p = request->getParam(0);
+  static String argument = p->name(); 
+  static String value = p->value(); 
+  
+}
 
 
 
