@@ -85,6 +85,29 @@ bool             filereq = false;                         // Request for new fil
 String           fileToPlay;                              // the file to play
 uint8_t          volume = 100;                             // the volume of the vs1053
 
+// pins for playing a mp3 via buttons
+const int nrOfButtons =  3;
+
+struct soundPin_struct
+{
+  int8_t gpio;                                    // Pin number
+  bool curr;                                    // Current state, true = HIGH, false = LOW
+  String sound;                                   // which sound nr to play
+} ;
+
+soundPin_struct soundPins[nrOfButtons] = {
+  {12, false, "1"},
+  {13, false, "2"},
+  {14, false, "3"}
+};
+
+
+// what time is the debounce delay ?
+unsigned long lastButtonCheck = 0;
+unsigned long debounceDelay = 100;
+
+
+
 
 
 DebugPrint dbg;
@@ -110,6 +133,8 @@ void setup() {
     dbg.printd("SPIFFS Mount Failed");
   }
 
+  initSoundButtons();
+
   // start the wifi
   startWifi();
 
@@ -119,12 +144,6 @@ void setup() {
   vs1053player.begin();
 
   delay(10);
-
-  /* timer = timerBegin ( 0, 80, true ) ;                   // User 1st timer with prescaler 80
-    timerAttachInterrupt ( timer, &timer100, true ) ;      // Call timer100() on timer alarm
-    timerAlarmWrite ( timer, 100000, true ) ;              // Alarm every 100 msec
-    timerAlarmEnable ( timer ) ;                           // Enable the timer*/
-
 
   // Handle startpage
   cmdserver.on ( "/", handleCmd ) ;
@@ -141,9 +160,25 @@ void setup() {
 */
 void loop() {
   vs1053player.setVolume(volume);
+  buttonLoop();
   mp3loop();
 }
 
+
+//**************************************************************************************************
+//                              INIT THE SOUND BUTTONS                                             *
+//**************************************************************************************************
+void initSoundButtons() {
+  // init sound button pins
+  dbg.printd("Initializing: %d Buttons", nrOfButtons);
+  int8_t buttonPin;
+  for (int i = 0 ; (buttonPin = soundPins[i].gpio) >= 0 ; i++ ) {
+    dbg.printd("Initializing Button at pin: %d", buttonPin);
+    pinMode(buttonPin, INPUT_PULLUP);
+    soundPins[i].curr = digitalRead(buttonPin);
+    dbg.printd("Button at pin: %d is in state %d", buttonPin, soundPins[i].curr);
+  }
+}
 
 //**************************************************************************************************
 //                                          START WIFI                                             *
@@ -164,7 +199,7 @@ void startWifi() {
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     while (WiFi.status() != WL_CONNECTED) {
       delay(500);
-      Serial.print(".");
+      dbg.printd("Waiting for wifi connection .");
     }
 
     Serial.println(WiFi.localIP());
@@ -338,6 +373,47 @@ bool openLocalFile(fs::FS &fs, const char * path) {
   }
 
   return true;
+}
+
+//**************************************************************************************************
+//                                     B U T T O N L O O P                                         *
+//**************************************************************************************************
+void buttonLoop() {
+
+  // do nothing when any button was pushed in the debouncedelay time
+  if ((millis() - lastButtonCheck) < debounceDelay) {
+    return;
+  }
+
+  // debounce time over
+  lastButtonCheck = millis();
+
+
+  int8_t buttonPin;
+  for (int i = 0 ; (buttonPin = soundPins[i].gpio) >= 0 ; i++ ) {
+    // get the current state of the button
+    bool level = (digitalRead(buttonPin) == HIGH);
+
+    // Change seen?
+    if (level != soundPins[i].curr) {
+      // And the new level
+      soundPins[i].curr = level;
+      // HIGH to LOW change?
+      if ( !level ) {
+        dbg.printd("GPIO_%02d is now LOW playing sound: %d", buttonPin, soundPins[i].sound);
+
+        // TODO: put this to function so it can be called here and from the webserver
+        if ( datamode & ( HEADER | DATA | METADATA | PLAYLISTINIT |
+                          PLAYLISTHEADER | PLAYLISTDATA ) )
+        {
+          datamode = STOPREQD ;                           // Request STOP
+        }
+
+        fileToPlay = "/" + soundPins[i].sound + ".mp3";
+        filereq = true;
+      }
+    }
+  }
 }
 
 //**************************************************************************************************
@@ -588,8 +664,8 @@ void handlebyte(uint8_t b, bool force)
         for (i = 0; i < 32; i += 8)              // Print 4 lines
         {
           dbg.printd("%02X %02X %02X %02X %02X %02X %02X %02X",
-                   buf[i],   buf[i + 1], buf[i + 2], buf[i + 3],
-                   buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]);
+                     buf[i],   buf[i + 1], buf[i + 2], buf[i + 3],
+                     buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]);
         }
       }
       vs1053player.playChunk(buf, bufcnt);         // Yes, send to player
