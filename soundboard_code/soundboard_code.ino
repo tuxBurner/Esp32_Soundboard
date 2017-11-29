@@ -38,6 +38,7 @@ void        handlebyte_ch(uint8_t b, bool force = false);
 #include <ESPAsyncWebServer.h>
 #include <FS.h>
 #include <SPIFFS.h>
+#include "DebugPrint.h"
 #include "Vs1053Esp32.h"
 
 // defines and includes
@@ -62,12 +63,7 @@ void        handlebyte_ch(uint8_t b, bool force = false);
 // Use a multiple of 1024 for optimal handling of bufferspace.  See definition of tmpbuff.
 #define RINGBFSIZ 40960
 
-
-// Debug buffer size
-#define DEBUG_BUFFER_SIZE 130
-
 // global vars
-int              DEBUG = 1;                             // Debug on/off
 AsyncWebServer   cmdserver(80);                        // Instance of embedded webserver on port 80
 File             mp3file;                               // File containing mp3 on SPIFFS
 
@@ -89,28 +85,9 @@ bool             filereq = false;                         // Request for new fil
 String           fileToPlay;                              // the file to play
 uint8_t          volume = 100;                             // the volume of the vs1053
 
-//**************************************************************************************************
-//                                          D B G P R I N T                                        *
-//**************************************************************************************************
-// Send a line of info to serial output.  Works like vsprintf(), but checks the DEBUG flag.        *
-// Print only if DEBUG flag is true.  Always returns the the formatted string.                     *
-//**************************************************************************************************
-char* dbgprint(const char* format, ...) {
-  static char sbuf[DEBUG_BUFFER_SIZE];                // For debug lines
-  va_list varArgs;                                    // For variable number of params
-
-  va_start(varArgs, format);                      // Prepare parameters
-  vsnprintf(sbuf, sizeof(sbuf), format, varArgs); // Format the message
-  va_end(varArgs);                                 // End of using parameters
-  if (DEBUG) {                                     // DEBUG on?
-    Serial.print("D: ");                           // Yes, print prefix
-    Serial.println(sbuf);                          // and the info
-  }
-
-  return sbuf;
-}
 
 
+DebugPrint dbg;
 Vs1053Esp32 vs1053player(VS1053_CS, VS1053_DCS, VS1053_DREQ);
 
 
@@ -123,14 +100,14 @@ void setup() {
   Serial.begin(115200);
   Serial.println();
 
-  dbgprint("Starting ESP32-soundboard Version %s...  Free memory %d", VERSION, ESP.getFreeHeap());
+  dbg.printd("Starting ESP32-soundboard Version %s...  Free memory %d", VERSION, ESP.getFreeHeap());
 
   // Init VSPI bus with default or modified pins
   SPI.begin(SPI_SCK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
 
   // start spiffs
   if (!SPIFFS.begin(true)) {
-    dbgprint("SPIFFS Mount Failed");
+    dbg.printd("SPIFFS Mount Failed");
   }
 
   // start the wifi
@@ -178,12 +155,12 @@ void startWifi() {
   if (WIFI_AP_MODE) {
     //WiFi.disconnect();                                   // After restart the router could DISABLED lead to reboots with SPIFFS
     //WiFi.softAPdisconnect(true);                         // still keep the old connection
-    dbgprint("Trying to setup AP with name %s and password %s.", WIFI_SSID, WIFI_PASS);
+    dbg.printd("Trying to setup AP with name %s and password %s.", WIFI_SSID, WIFI_PASS);
     WiFi.softAP(WIFI_SSID, WIFI_PASS);                        // This ESP will be an AP
-    dbgprint("IP = 192.168.4.1");             // Address for AP
+    dbg.printd("IP = 192.168.4.1");             // Address for AP
     delay(5000);
   } else {
-    dbgprint("Trying to setup wifi with ssid %s and password %s.", WIFI_SSID, WIFI_PASS);
+    dbg.printd("Trying to setup wifi with ssid %s and password %s.", WIFI_SSID, WIFI_PASS);
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     while (WiFi.status() != WL_CONNECTED) {
       delay(500);
@@ -235,7 +212,7 @@ void handleCmd ( AsyncWebServerRequest* request ) {
     fileToPlay = "/" + value + ".mp3";
     filereq = true;
 
-    dbgprint("Play file: %s requested", fileToPlay.c_str());
+    dbg.printd("Play file: %s requested", fileToPlay.c_str());
 
     request->send ( 200, "text/plain", "Play file:" + fileToPlay);
     return;
@@ -280,7 +257,7 @@ void handleFileUpload(AsyncWebServerRequest *request, String filename, size_t in
   }
   t1 = millis();                                     // Current timestamp
   // Yes, print progress
-  dbgprint("File upload %s, t = %d msec, len %d, index %d", filename.c_str(), t1 - t, len, index);
+  dbg.printd("File upload %s, t = %d msec, len %d, index %d", filename.c_str(), t1 - t, len, index);
   if (len) {                                       // Something to write?
     if ((index != lastindex) || (index == 0)) { // New chunk?
       f.write(data, len);                         // Yes, transfer to SPIFFS
@@ -290,7 +267,7 @@ void handleFileUpload(AsyncWebServerRequest *request, String filename, size_t in
   }
   if (final) {                                    // Was this last chunk?
     f.close();                                       // Yes, clode the file
-    reply = dbgprint("File upload %s, %d bytes finished", filename.c_str(), totallength);
+    reply = dbg.printd("File upload %s, %d bytes finished", filename.c_str(), totallength);
     request->send(200, "", reply);
   }
 }
@@ -316,7 +293,7 @@ void handleFSf(AsyncWebServerRequest* request, const String& filename)
   static String          ct;                           // Content type
   AsyncWebServerResponse *response;                    // For extra headers
 
-  dbgprint("FileRequest received %s", filename.c_str());
+  dbg.printd("FileRequest received %s", filename.c_str());
   ct = getContentType(filename);                    // Get content type
   if ((ct == "") || (filename == "") || (filename == "/favicon.ico"))         // Empty is illegal
   {
@@ -332,7 +309,7 @@ void handleFSf(AsyncWebServerRequest* request, const String& filename)
     response->addHeader("Last-Modified", VERSION);
     request->send(response);
   }
-  dbgprint("Response sent");
+  dbg.printd("Response sent");
 }
 
 
@@ -352,11 +329,11 @@ String getContentType(String filename) {
 */
 bool openLocalFile(fs::FS &fs, const char * path) {
 
-  dbgprint("Opening file %s", path);
+  dbg.printd("Opening file %s", path);
 
   mp3file = fs.open(path, "r");                           // Open the file
   if (!mp3file) {
-    dbgprint("Error opening file %s", path);
+    dbg.printd("Error opening file %s", path);
     return false;
   }
 
@@ -420,7 +397,7 @@ void mp3loop() {
 
   // STOP requested?
   if (datamode == STOPREQD) {
-    dbgprint("STOP requested");
+    dbg.printd("STOP requested");
 
     mp3file.close();
 
@@ -607,10 +584,10 @@ void handlebyte(uint8_t b, bool force)
       if (firstchunk)
       {
         firstchunk = false;
-        dbgprint("First chunk:");                  // Header for printout of first chunk
+        dbg.printd("First chunk:");                  // Header for printout of first chunk
         for (i = 0; i < 32; i += 8)              // Print 4 lines
         {
-          dbgprint("%02X %02X %02X %02X %02X %02X %02X %02X",
+          dbg.printd("%02X %02X %02X %02X %02X %02X %02X %02X",
                    buf[i],   buf[i + 1], buf[i + 2], buf[i + 3],
                    buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]);
         }
