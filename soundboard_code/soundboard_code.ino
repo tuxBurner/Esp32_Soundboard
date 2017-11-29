@@ -84,6 +84,8 @@ uint16_t         rbrindex = RINGBFSIZ - 1;                // Emptypointer in rin
 
 int              chunkcount = 0;                          // Counter for chunked transfer
 bool             chunked = false;                         // Station provides chunked transfer TODO: Not needed
+bool             filereq = false;                         // Request for new file to play TODO: can filereq and filetoplay be one ?
+String           fileToPlay;                              // the file to play
 
 //**************************************************************************************************
 //                                          D B G P R I N T                                        *
@@ -500,35 +502,35 @@ void setup() {
   // start the wifi
   startWifi();
 
-  // Create ring buffer  
-  ringbuf = (uint8_t*) malloc ( RINGBFSIZ ) ;  
+  // Create ring buffer
+  ringbuf = (uint8_t*) malloc ( RINGBFSIZ ) ;
   // Initialize VS1053 player
   vs1053player.begin();
-  
+
   delay(10);
 
- /* timer = timerBegin ( 0, 80, true ) ;                   // User 1st timer with prescaler 80
-  timerAttachInterrupt ( timer, &timer100, true ) ;      // Call timer100() on timer alarm
-  timerAlarmWrite ( timer, 100000, true ) ;              // Alarm every 100 msec
-  timerAlarmEnable ( timer ) ;                           // Enable the timer*/
+  /* timer = timerBegin ( 0, 80, true ) ;                   // User 1st timer with prescaler 80
+    timerAttachInterrupt ( timer, &timer100, true ) ;      // Call timer100() on timer alarm
+    timerAlarmWrite ( timer, 100000, true ) ;              // Alarm every 100 msec
+    timerAlarmEnable ( timer ) ;                           // Enable the timer*/
 
-  // Handle file uploads
-  cmdserver.onFileUpload(handleFileUpload);
+
+  // Handle startpage
+  cmdserver.on ( "/", handleCmd ) ;
   // Handle file from FS
   cmdserver.onNotFound(handleFS);
+  // Handle file uploads
+  cmdserver.onFileUpload(handleFileUpload);
   // start http server
   cmdserver.begin();
-
-  // Test
-  openLocalFile(SPIFFS, "/3.mp3");
 }
 
 /**
- * Main loop
- */
+   Main loop
+*/
 void loop() {
 
-  vs1053player.setVolume (72); 
+  vs1053player.setVolume (72);
   mp3loop();
 }
 
@@ -573,20 +575,40 @@ void startWifi() {
 // The save and the list commands are handled specially.                                   *
 //******************************************************************************************
 void handleCmd ( AsyncWebServerRequest* request ) {
-  
+
   // Get number of arguments
-  int params = request->params();                
+  int params = request->params();
 
   // no params ? then do nothing here
-  if(params == 0) {
-    return;    
+  if (params == 0) {
+    request->send(202, "text/plain", "No valid command.");
+    return;
   }
 
   // read the argument and its value from the first parameter
   AsyncWebParameter* p = request->getParam(0);
-  static String argument = p->name(); 
-  static String value = p->value(); 
-  
+  static String argument = p->name();
+  static String value = p->value();
+
+  // Station in the form address:port
+  if ( argument == "play" )
+  {
+    if ( datamode & ( HEADER | DATA | METADATA | PLAYLISTINIT |
+                      PLAYLISTHEADER | PLAYLISTDATA ) )
+    {
+      datamode = STOPREQD ;                           // Request STOP
+    }
+
+    fileToPlay = "/" + value + ".mp3";
+    filereq=true;
+
+    dbgprint("Play file: %s requested",fileToPlay);
+
+    request->send ( 200, "text/plain", "Play file:"+fileToPlay);
+    return;
+  }
+
+  request->send(202, "text/plain", "No valid command.");
 }
 
 
@@ -653,7 +675,7 @@ void handleFSf(AsyncWebServerRequest* request, const String& filename)
 
   dbgprint("FileRequest received %s", filename.c_str());
   ct = getContentType(filename);                    // Get content type
-  if ((ct == "") || (filename == ""))         // Empty is illegal
+  if ((ct == "") || (filename == "") || (filename == "/favicon.ico"))         // Empty is illegal
   {
     request->send(404, "text/plain", "File not found");
   }
@@ -683,25 +705,17 @@ String getContentType(String filename) {
 
 
 /**
-   Opens a local file from the given fs
+    Opens a local file from the given fs
 */
 bool openLocalFile(fs::FS &fs, const char * path) {
 
   dbgprint("Opening file %s", path);
 
-  mp3file = fs.open(path);                            // Open the file
+  mp3file = fs.open(path, "r");                           // Open the file
   if (!mp3file) {
     dbgprint("Error opening file %s", path);
     return false;
   }
-
-  //DEBUG dump file to serial
-  /*while (mp3file.available()) {
-    Serial.write(mp3file.read());
-  }*/
-
-  // set the mode to data
-  datamode = DATA;
 
   return true;
 }
@@ -735,11 +749,11 @@ void mp3loop() {
     // Need to fill the ringbuffer?
     if (rs >= sizeof(tmpbuff)) {
 
-         // Reduce byte count for this mp3loop()
-     maxchunk = sizeof(tmpbuff);  
-      
+      // Reduce byte count for this mp3loop()
+      maxchunk = sizeof(tmpbuff);
+
       // Bytes left in file
-      av = mp3file.available();      
+      av = mp3file.available();
       // Reduce byte count for this mp3loop()
       if (av < maxchunk) {
         maxchunk = av;
@@ -786,10 +800,19 @@ void mp3loop() {
     if ((av == 0) && (ringavail() == 0))         // End of mp3 data?
     {
       datamode = STOPREQD;                              // End of local mp3-file detected
-      //nodeID = selectnextSDnode(SD_currentnode, +1); // Select the next file on SD
-      //host = getSDfilename(nodeID);
-      //hostreq = true;                                   // Request this host
+      filereq = false;
     }
+  }
+
+  // new file to play ?
+  if (filereq) {
+    filereq = false;
+
+    openLocalFile(SPIFFS, fileToPlay.c_str());
+
+    // set the mode to data
+    datamode = DATA;
+
   }
 
 }
@@ -837,7 +860,7 @@ void putring(uint8_t* buf, uint16_t len) {
 //**************************************************************************************************
 //                                         R I N G A V A I L                                       *
 //**************************************************************************************************
-inline uint16_t ringavail() {  
+inline uint16_t ringavail() {
   return rcount;                     // Return number of bytes available for getring()
 }
 
@@ -877,7 +900,7 @@ void handlebyte_ch(uint8_t b, bool force)
       (datamode & (DATA |                        // Test op DATA handling
                    METADATA |
                    PLAYLISTDATA)))
-  {
+    {
     if (chunkcount == 0)                          // Expecting a new chunkcount?
     {
       if (b == '\r')                             // Skip CR
@@ -903,10 +926,10 @@ void handlebyte_ch(uint8_t b, bool force)
       handlebyte(b, force);                       // Normal data byte
       chunkcount--;                                  // Update count to next chunksize block
     }
-  }
-  else
-  {*/
-    handlebyte(b, force);                         // Normal handling of this byte
+    }
+    else
+    {*/
+  handlebyte(b, force);                         // Normal handling of this byte
   //}
 }
 
@@ -947,7 +970,7 @@ void handlebyte(uint8_t b, bool force)
 
   // Handle next byte of MP3/Ogg data
   if (datamode == DATA)  {
-    
+
     buf[bufcnt++] = b;                                // Save byte in chunkbuffer
     if (bufcnt == sizeof(buf) || force)            // Buffer full?
     {
@@ -1199,7 +1222,3 @@ void handlebyte(uint8_t b, bool force)
     return;
     }*/
 }
-
-
-
-
