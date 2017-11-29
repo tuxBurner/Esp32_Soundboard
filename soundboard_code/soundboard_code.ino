@@ -238,17 +238,8 @@ void handleCmd ( AsyncWebServerRequest* request ) {
   // Station in the form address:port
   if ( argument == "play" )
   {
-    if ( datamode & ( HEADER | DATA | METADATA | PLAYLISTINIT |
-                      PLAYLISTHEADER | PLAYLISTDATA ) )
-    {
-      datamode = STOPREQD ;                           // Request STOP
-    }
-
-    fileToPlay = "/" + value + ".mp3";
-    filereq = true;
-
     dbg.printd("Play file: %s requested", fileToPlay.c_str());
-
+    initStartSound(value);
     request->send ( 200, "text/plain", "Play file:" + fileToPlay);
     return;
   }
@@ -401,19 +392,24 @@ void buttonLoop() {
       // HIGH to LOW change?
       if ( !level ) {
         dbg.printd("GPIO_%02d is now LOW playing sound: %d", buttonPin, soundPins[i].sound);
-
-        // TODO: put this to function so it can be called here and from the webserver
-        if ( datamode & ( HEADER | DATA | METADATA | PLAYLISTINIT |
-                          PLAYLISTHEADER | PLAYLISTDATA ) )
-        {
-          datamode = STOPREQD ;                           // Request STOP
-        }
-
-        fileToPlay = "/" + soundPins[i].sound + ".mp3";
-        filereq = true;
+        initStartSound(soundPins[i].sound);
       }
     }
   }
+}
+
+//**************************************************************************************************
+//                                      INIT SOUND TO PLAY                                         *
+//**************************************************************************************************
+void initStartSound(String soundToPlay) {  
+  if ( datamode & ( HEADER | DATA | METADATA | PLAYLISTINIT |
+                    PLAYLISTHEADER | PLAYLISTDATA ) )
+  {
+    datamode = STOPREQD ;                           // Request STOP
+  }
+
+  fileToPlay = "/" + soundToPlay + ".mp3";
+  filereq = true;
 }
 
 //**************************************************************************************************
