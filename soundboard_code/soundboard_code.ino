@@ -86,7 +86,7 @@ int              chunkcount = 0;                          // Counter for chunked
 bool             chunked = false;                         // Station provides chunked transfer TODO: Not needed
 bool             filereq = false;                         // Request for new file to play TODO: can filereq and filetoplay be one ?
 String           fileToPlay;                              // the file to play
-uint8_t          volume = 72;                             // the volume of the vs1053
+uint8_t          volume = 100;                             // the volume of the vs1053
 
 //**************************************************************************************************
 //                                          D B G P R I N T                                        *
@@ -613,7 +613,7 @@ void handleCmd ( AsyncWebServerRequest* request ) {
     uint8_t newVol = value.toInt();
     if (newVol >= 0 && newVol <= 100) {
       volume = newVol;
-      request->send ( 200, "text/plain", "Volume is now:" + newVol);
+      request->send ( 200, "text/plain", "Volume is now:" + value);
       return;
     }
   }
