@@ -59,6 +59,10 @@ void        handlebyte_ch(uint8_t b, bool force = false);
 #define WIFI_SSID "suckOnMe"
 #define WIFI_PASS "leatomhannes"
 
+int wifiConnectionCount = 0;
+int wifiConnectionMaxCount = 10;
+
+
 // Ringbuffer for smooth playing. 20000 bytes is 160 Kbits, about 1.5 seconds at 128kb bitrate.
 // Use a multiple of 1024 for optimal handling of bufferspace.  See definition of tmpbuff.
 #define RINGBFSIZ 40960
@@ -199,7 +203,12 @@ void startWifi() {
     WiFi.begin(WIFI_SSID, WIFI_PASS);
     while (WiFi.status() != WL_CONNECTED) {
       delay(500);
+      wifiConnectionCount++;
       dbg.printd("Waiting for wifi connection .");
+      if (wifiConnectionMaxCount == wifiConnectionCount) {
+        dbg.printd("Could not connect to wifi");
+        break;
+      }
     }
 
     Serial.println(WiFi.localIP());
@@ -401,7 +410,7 @@ void buttonLoop() {
 //**************************************************************************************************
 //                                      INIT SOUND TO PLAY                                         *
 //**************************************************************************************************
-void initStartSound(String soundToPlay) {  
+void initStartSound(String soundToPlay) {
   if ( datamode & ( HEADER | DATA | METADATA | PLAYLISTINIT |
                     PLAYLISTHEADER | PLAYLISTDATA ) )
   {
