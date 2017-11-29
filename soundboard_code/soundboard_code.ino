@@ -587,8 +587,8 @@ void handleCmd ( AsyncWebServerRequest* request ) {
 
   // read the argument and its value from the first parameter
   AsyncWebParameter* p = request->getParam(0);
-  static String argument = p->name();
-  static String value = p->value();
+  String argument = p->name();
+  String value = p->value();
 
   // Station in the form address:port
   if ( argument == "play" )
@@ -602,7 +602,7 @@ void handleCmd ( AsyncWebServerRequest* request ) {
     fileToPlay = "/" + value + ".mp3";
     filereq=true;
 
-    dbgprint("Play file: %s requested",fileToPlay);
+    dbgprint("Play file: %s requested",fileToPlay.c_str());
 
     request->send ( 200, "text/plain", "Play file:"+fileToPlay);
     return;
