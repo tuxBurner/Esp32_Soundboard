@@ -86,6 +86,7 @@ int              chunkcount = 0;                          // Counter for chunked
 bool             chunked = false;                         // Station provides chunked transfer TODO: Not needed
 bool             filereq = false;                         // Request for new file to play TODO: can filereq and filetoplay be one ?
 String           fileToPlay;                              // the file to play
+uint8_t          volume = 72;                             // the volume of the vs1053
 
 //**************************************************************************************************
 //                                          D B G P R I N T                                        *
@@ -529,8 +530,7 @@ void setup() {
    Main loop
 */
 void loop() {
-
-  vs1053player.setVolume (72);
+  vs1053player.setVolume(volume);
   mp3loop();
 }
 
@@ -600,15 +600,25 @@ void handleCmd ( AsyncWebServerRequest* request ) {
     }
 
     fileToPlay = "/" + value + ".mp3";
-    filereq=true;
+    filereq = true;
 
-    dbgprint("Play file: %s requested",fileToPlay.c_str());
+    dbgprint("Play file: %s requested", fileToPlay.c_str());
 
-    request->send ( 200, "text/plain", "Play file:"+fileToPlay);
+    request->send ( 200, "text/plain", "Play file:" + fileToPlay);
     return;
   }
 
-  request->send(202, "text/plain", "No valid command.");
+  // set the volume
+  if (argument == "volume") {
+    uint8_t newVol = value.toInt();
+    if (newVol >= 0 && newVol <= 100) {
+      volume = newVol;
+      request->send ( 200, "text/plain", "Volume is now:" + newVol);
+      return;
+    }
+  }
+
+  request->send(404, "text/plain", "No valid command.");
 }
 
 
@@ -955,19 +965,6 @@ void handlebyte(uint8_t b, bool force)
   int              inx;                               // Pointer in metaline
   int              i;                                 // Loop control
 
-  // Initialize for header receive
-  /*if(datamode == INIT) {
-    ctseen = false;                                   // Contents type not seen yet
-    metaint = 0;                                      // No metaint found
-    LFcount = 0;                                      // For detection end of header
-    bitrate = 0;                                      // Bitrate still unknown
-    dbgprint("Switch to HEADER");
-    datamode = HEADER;                                // Handle header
-    totalcount = 0;                                   // Reset totalcount
-    metaline = "";                                    // No metadata yet
-    firstchunk = true;                                // First chunk expected
-    }*/
-
   // Handle next byte of MP3/Ogg data
   if (datamode == DATA)  {
 
@@ -985,240 +982,9 @@ void handlebyte(uint8_t b, bool force)
                    buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]);
         }
       }
-      //totalcount += bufcnt;                           // Count number of bytes, ignore overflow
       vs1053player.playChunk(buf, bufcnt);         // Yes, send to player
       bufcnt = 0;                                     // Reset count
     }
-    // No METADATA on Ogg streams or mp3 files
-    /*if(metaint != 0) {
-      // End of datablock?
-      if(--datacount == 0) {
-        // Yes, still data in buffer?
-        if(bufcnt) {
-          totalcount += bufcnt;                       // Count number of bytes, ignore overflow
-          vs1053player.playChunk(buf, bufcnt);     // Yes, send to player
-          bufcnt = 0;                                 // Reset count
-        }
-        datamode = METADATA;
-        firstmetabyte = true;                         // Expecting first metabyte(counter)
-      }
-      }*/
     return;
   }
-  // Handle next byte of MP3 header
-  /*if(datamode == HEADER) {
-    if((b > 0x7F) ||                               // Ignore unprintable characters
-      (b == '\r') ||                              // Ignore CR
-      (b == '\0'))                               // Ignore NULL
-    {
-      // Yes, ignore
-    }
-    // Linefeed ?
-    else if(b == '\n') {
-      LFcount++;                                      // Count linefeeds
-      if(chkhdrline(metaline.c_str()))           // Reasonable input?
-      {
-        lcml = metaline;                              // Use lower case for compare
-        lcml.toLowerCase();
-        // Yes, Show it
-        dbgprint("Headerline: %s", metaline.c_str());
-        if(lcml.startsWith("location: http://")) // Redirection?
-        {
-          host = metaline.substring(17);           // Yes, get new URL
-          hostreq = true;                             // And request this one
-        }
-        if(lcml.indexOf("content-type") >= 0)     // Line with "Content-Type: xxxx/yyy"
-        {
-          ctseen = true;                              // Yes, remember seeing this
-          ct = metaline.substring(13);             // Set contentstype. Not used yet
-          ct.trim();
-          dbgprint("%s seen.", ct.c_str());
-        }
-        if(lcml.startsWith("icy-br:"))
-        {
-          bitrate = metaline.substring(7).toInt();    // Found bitrate tag, read the bitrate
-          if(bitrate == 0)                          // For Ogg br is like "Quality 2"
-          {
-            bitrate = 87;                             // Dummy bitrate
-          }
-        }
-        else if(metaline.startsWith("icy-metaint:"))
-        {
-          metaint = metaline.substring(12).toInt();   // Found metaint tag, read the value
-        }
-        else if(lcml.startsWith("icy-name:"))
-        {
-          icyname = metaline.substring(9);            // Get station name
-          icyname.trim();                             // Remove leading and trailing spaces
-          displayinfo(icyname.c_str(), 90, 36,
-                       YELLOW);                     // Show station name at position 90-126
-          mqttpub.trigger(MQTT_ICYNAME);           // Request publishing to MQTT
-        }
-        else if(lcml.startsWith("transfer-encoding:"))
-        {
-          // Station provides chunked transfer
-          if(metaline.endsWith("chunked"))
-          {
-            chunked = true;                           // Remember chunked transfer mode
-            chunkcount = 0;                           // Expect chunkcount in DATA
-          }
-        }
-      }
-      metaline = "";                                  // Reset this line
-      if((LFcount == 2) && ctseen)                // Some data seen and a double LF?
-      {
-        dbgprint("Switch to DATA, bitrate is %d"     // Show bitrate
-                  ", metaint is %d",                  // and metaint
-                  bitrate, metaint);
-        datamode = DATA;                              // Expecting data now
-        datacount = metaint;                          // Number of bytes before first metadata
-        bufcnt = 0;                                   // Reset buffer count
-        vs1053player.startSong();                     // Start a new song
-      }
-    }
-    else
-    {
-      metaline +=(char)b;                            // Normal character, put new char in metaline
-      LFcount = 0;                                    // Reset double CRLF detection
-    }
-    return;
-    }*/
-  /*if(datamode == METADATA)                          // Handle next byte of metadata
-    {
-    if(firstmetabyte)                               // First byte of metadata?
-    {
-      firstmetabyte = false;                          // Not the first anymore
-      metacount = b * 16 + 1;                         // New count for metadata including length byte
-      if(metacount > 1)
-      {
-        dbgprint("Metadata block %d bytes",
-                  metacount - 1);                   // Most of the time there are zero bytes of metadata
-      }
-      metaline = "";                                  // Set to empty
-    }
-    else
-    {
-      metaline +=(char)b;                            // Normal character, put new char in metaline
-    }
-    if(--metacount == 0)
-    {
-      if(metaline.length())                         // Any info present?
-      {
-        // metaline contains artist and song name.  For example:
-        // "StreamTitle='Don McLean - American Pie';StreamUrl='';"
-        // Sometimes it is just other info like:
-        // "StreamTitle='60s 03 05 Magic60s';StreamUrl='';"
-        // Isolate the StreamTitle, remove leading and trailing quotes if present.
-        showstreamtitle(metaline.c_str());         // Show artist and title if present in metadata
-        mqttpub.trigger(MQTT_STREAMTITLE);         // Request publishing to MQTT
-      }
-      if(metaline.length() > 1500)                  // Unlikely metaline length?
-      {
-        dbgprint("Metadata block too long! Skipping all Metadata from now on.");
-        metaint = 0;                                  // Probably no metadata
-        metaline = "";                                // Do not waste memory on this
-      }
-      datacount = metaint;                            // Reset data count
-      bufcnt = 0;                                     // Reset buffer count
-      datamode = DATA;                                // Expecting data
-    }
-    }*/
-  /*if(datamode == PLAYLISTINIT)                      // Initialize for receive .m3u file
-    {
-    // We are going to use metadata to read the lines from the .m3u file
-    // Sometimes this will only contain a single line
-    metaline = "";                                    // Prepare for new line
-    LFcount = 0;                                      // For detection end of header
-    datamode = PLAYLISTHEADER;                        // Handle playlist data
-    playlistcnt = 1;                                  // Reset for compare
-    totalcount = 0;                                   // Reset totalcount
-    dbgprint("Read from playlist");
-    }*/
-  /*if(datamode == PLAYLISTHEADER)                    // Read header
-    {
-    if((b > 0x7F) ||                               // Ignore unprintable characters
-      (b == '\r') ||                              // Ignore CR
-      (b == '\0'))                               // Ignore NULL
-    {
-      // Yes, ignore
-    }
-    else if(b == '\n')                              // Linefeed ?
-    {
-      LFcount++;                                      // Count linefeeds
-      dbgprint("Playlistheader: %s",                 // Show playlistheader
-                metaline.c_str());
-      metaline = "";                                  // Ready for next line
-      if(LFcount == 2)
-      {
-        dbgprint("Switch to PLAYLISTDATA");
-        datamode = PLAYLISTDATA;                      // Expecting data now
-        return;
-      }
-    }
-    else
-    {
-      metaline +=(char)b;                            // Normal character, put new char in metaline
-      LFcount = 0;                                    // Reset double CRLF detection
-    }
-    }*/
-  /*if(datamode == PLAYLISTDATA)                      // Read next byte of .m3u file data
-    {
-    if((b > 0x7F) ||                               // Ignore unprintable characters
-      (b == '\r') ||                              // Ignore CR
-      (b == '\0'))                               // Ignore NULL
-    {
-      // Yes, ignore
-    }
-    else if(b == '\n')                              // Linefeed ?
-    {
-      dbgprint("Playlistdata: %s",                   // Show playlistheader
-                metaline.c_str());
-      if(metaline.length() < 5)                     // Skip short lines
-      {
-        metaline = "";                                // Flush line
-        return;
-      }
-      if(metaline.indexOf("#EXTINF:") >= 0)      // Info?
-      {
-        if(playlist_num == playlistcnt)             // Info for this entry?
-        {
-          inx = metaline.indexOf(",");             // Comma in this line?
-          if(inx > 0)
-          {
-            // Show artist and title if present in metadata
-            showstreamtitle(metaline.substring(inx + 1).c_str(), true);
-            mqttpub.trigger(MQTT_STREAMTITLE);     // Request publishing to MQTT
-          }
-        }
-      }
-      if(metaline.startsWith("#"))               // Commentline?
-      {
-        metaline = "";
-        return;                                       // Ignore commentlines
-      }
-      // Now we have an URL for a .mp3 file or stream.  Is it the rigth one?
-      dbgprint("Entry %d in playlist found: %s", playlistcnt, metaline.c_str());
-      if(playlist_num == playlistcnt)
-      {
-        inx = metaline.indexOf("http://");         // Search for "http://"
-        if(inx >= 0)                                // Does URL contain "http://"?
-        {
-          host = metaline.substring(inx + 7);      // Yes, remove it and set host
-        }
-        else
-        {
-          host = metaline;                            // Yes, set new host
-        }
-        connecttohost();                              // Connect to it
-      }
-      metaline = "";
-      host = playlist;                                // Back to the .m3u host
-      playlistcnt++;                                  // Next entry in playlist
-    }
-    else
-    {
-      metaline +=(char)b;                            // Normal character, add it to metaline
-    }
-    return;
-    }*/
 }
