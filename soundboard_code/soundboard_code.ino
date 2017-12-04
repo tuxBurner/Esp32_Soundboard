@@ -89,20 +89,23 @@ bool             filereq = false;                         // Request for new fil
 String           fileToPlay;                              // the file to play
 uint8_t          volume = 100;                             // the volume of the vs1053
 
-// pins for playing a mp3 via buttons
-const int nrOfButtons =  3;
+int8_t           statusLedPin = LED_BUILTIN;
+bool             wifiTurnedOn = false;
+bool             turnWifiOn = false;
 
+// pins for playing a mp3 via buttons
 struct soundPin_struct
 {
-  int8_t gpio;                                    // Pin number
+  int8_t gpio;                                  // Pin number
   bool curr;                                    // Current state, true = HIGH, false = LOW
-  String sound;                                   // which sound nr to play
+  String sound;                                 // which sound nr to play
+  bool wifiBtn;                                 // when true this is the button handling the wifi mode
 } ;
 
-soundPin_struct soundPins[nrOfButtons] = {
-  {12, false, "1"},
-  {13, false, "2"},
-  {14, false, "3"}
+soundPin_struct soundPins[] = {
+  {12, false, "1", false},
+  {13, false, "2", false},
+  {14, false, "3", true}
 };
 
 
@@ -110,11 +113,10 @@ soundPin_struct soundPins[nrOfButtons] = {
 unsigned long lastButtonCheck = 0;
 unsigned long debounceDelay = 100;
 
-
-
-
-
+// we need debug :)
 DebugPrint dbg;
+
+// the soundboard
 Vs1053Esp32 vs1053player(VS1053_CS, VS1053_DCS, VS1053_DREQ);
 
 
@@ -137,10 +139,11 @@ void setup() {
     dbg.printd("SPIFFS Mount Failed");
   }
 
-  initSoundButtons();
+  dbg.printd("Setting status led on pin: %d", statusLedPin);
+  pinMode(statusLedPin, OUTPUT);
 
-  // start the wifi
-  startWifi();
+
+  initSoundButtons();
 
   // Create ring buffer
   ringbuf = (uint8_t*) malloc ( RINGBFSIZ ) ;
@@ -157,6 +160,9 @@ void setup() {
   cmdserver.onFileUpload(handleFileUpload);
   // start http server
   cmdserver.begin();
+
+  wifiTurnedOn = false;
+  turnWifiOn = false;
 }
 
 /**
@@ -166,6 +172,7 @@ void loop() {
   vs1053player.setVolume(volume);
   buttonLoop();
   mp3loop();
+  startWifi();
 }
 
 
@@ -174,9 +181,9 @@ void loop() {
 //**************************************************************************************************
 void initSoundButtons() {
   // init sound button pins
-  dbg.printd("Initializing: %d Buttons", nrOfButtons);
+  dbg.printd("Initializing: Buttons");
   int8_t buttonPin;
-  for (int i = 0 ; (buttonPin = soundPins[i].gpio) >= 0 ; i++ ) {
+  for (int i = 0 ; (buttonPin = soundPins[i].gpio) > 0 ; i++ ) {
     dbg.printd("Initializing Button at pin: %d", buttonPin);
     pinMode(buttonPin, INPUT_PULLUP);
     soundPins[i].curr = digitalRead(buttonPin);
@@ -191,28 +198,50 @@ void initSoundButtons() {
 //**************************************************************************************************
 void startWifi() {
 
-  if (WIFI_AP_MODE) {
-    //WiFi.disconnect();                                   // After restart the router could DISABLED lead to reboots with SPIFFS
-    //WiFi.softAPdisconnect(true);                         // still keep the old connection
-    dbg.printd("Trying to setup AP with name %s and password %s.", WIFI_SSID, WIFI_PASS);
-    WiFi.softAP(WIFI_SSID, WIFI_PASS);                        // This ESP will be an AP
-    dbg.printd("IP = 192.168.4.1");             // Address for AP
-    delay(5000);
-  } else {
-    dbg.printd("Trying to setup wifi with ssid %s and password %s.", WIFI_SSID, WIFI_PASS);
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
-      wifiConnectionCount++;
-      dbg.printd("Waiting for wifi connection .");
-      if (wifiConnectionMaxCount == wifiConnectionCount) {
-        dbg.printd("Could not connect to wifi");
-        break;
-      }
-    }
-
-    Serial.println(WiFi.localIP());
+  if (!turnWifiOn && wifiTurnedOn) {
+    dbg.printd("Turning off wifi");
+    wifiTurnedOn = false;    
+    
+    /*if (WIFI_AP_MODE) {
+      WiFi.softAPdisconnect(true); // turn off wifi ?
+    }*/
+     WiFi.enableAP(false);
+     WiFi.enableSTA(false);
   }
+
+  if (!wifiTurnedOn && turnWifiOn) {
+
+    dbg.printd("Turning on wifi");
+
+    wifiTurnedOn = true;
+    
+    if (WIFI_AP_MODE) {
+      //WiFi.disconnect();                                   // After restart the router could DISABLED lead to reboots with SPIFFS
+      //WiFi.softAPdisconnect(true);                         // still keep the old connection
+      dbg.printd("Trying to setup AP with name %s and password %s.", WIFI_SSID, WIFI_PASS);
+      WiFi.softAP(WIFI_SSID, WIFI_PASS);                        // This ESP will be an AP
+      dbg.printd("IP = 192.168.4.1");             // Address for AP
+      delay(5000);
+    } else {
+      dbg.printd("Trying to setup wifi with ssid %s and password %s.", WIFI_SSID, WIFI_PASS);
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
+      while (WiFi.status() != WL_CONNECTED) {        
+        delay(500);
+        digitalWrite(statusLedPin, true);
+        wifiConnectionCount++;
+        dbg.printd("Waiting for wifi connection .");
+        digitalWrite(statusLedPin, false);
+        if (wifiConnectionMaxCount == wifiConnectionCount) {
+          dbg.printd("Could not connect to wifi");
+          break;
+        }
+      }
+
+      Serial.println(WiFi.localIP());
+    }
+  }
+
+  digitalWrite(statusLedPin, wifiTurnedOn);
 }
 
 
@@ -390,7 +419,7 @@ void buttonLoop() {
 
 
   int8_t buttonPin;
-  for (int i = 0 ; (buttonPin = soundPins[i].gpio) >= 0 ; i++ ) {
+  for (int i = 0 ; (buttonPin = soundPins[i].gpio) > 0 ; i++ ) {
     // get the current state of the button
     bool level = (digitalRead(buttonPin) == HIGH);
 
@@ -399,9 +428,14 @@ void buttonLoop() {
       // And the new level
       soundPins[i].curr = level;
       // HIGH to LOW change?
-      if ( !level ) {
-        dbg.printd("GPIO_%02d is now LOW playing sound: %d", buttonPin, soundPins[i].sound);
-        initStartSound(soundPins[i].sound);
+      if (!level) {
+        if (soundPins[i].wifiBtn == false) {
+          dbg.printd("GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound);
+          initStartSound(soundPins[i].sound);
+        } else {
+          turnWifiOn = !turnWifiOn;
+          dbg.printd("GPIO_%02d is now LOW switching wifi to: %d", buttonPin, turnWifiOn);
+        }
       }
     }
   }
