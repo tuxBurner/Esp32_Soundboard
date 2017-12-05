@@ -103,9 +103,20 @@ struct soundPin_struct
 } ;
 
 soundPin_struct soundPins[] = {
-  {12, false, "1", false},
-  {13, false, "2", false},
-  {14, false, "3", true}
+  {12, false, "1", false}, // sheep
+  {13, false, "2", false}, // dog
+  {14, false, "3", false}, // cat
+  {27, false, "4", false}, // horse
+  {26, false, "", true},   // orange square
+  {25, false, "5", false},  // pig
+  {33, false, "6", false}, // cow
+
+
+  //{32, false, "2", false}  // ???
+  //{35, false, "2", false}  // ???
+  //{34, false, "2", false},
+  //{39, false, "2", false},
+  //{36, false, "2", false}
 };
 
 
@@ -150,19 +161,19 @@ void setup() {
   // Initialize VS1053 player
   vs1053player.begin();
 
-  delay(10);
-
-  // Handle startpage
-  cmdserver.on ( "/", handleCmd ) ;
+  delay(10);  
   // Handle file from FS
   cmdserver.onNotFound(handleFS);
   // Handle file uploads
   cmdserver.onFileUpload(handleFileUpload);
-  // start http server
-  cmdserver.begin();
+  // Handle startpage
+  cmdserver.on ( "/", handleCmd ) ;
+
 
   wifiTurnedOn = false;
-  turnWifiOn = false;
+  turnWifiOn = true;
+
+  startWifi();
 }
 
 /**
@@ -200,13 +211,14 @@ void startWifi() {
 
   if (!turnWifiOn && wifiTurnedOn) {
     dbg.printd("Turning off wifi");
-    wifiTurnedOn = false;    
-    
+    wifiTurnedOn = false;
+
     /*if (WIFI_AP_MODE) {
       WiFi.softAPdisconnect(true); // turn off wifi ?
-    }*/
-     WiFi.enableAP(false);
-     WiFi.enableSTA(false);
+      }*/
+    WiFi.enableAP(false);
+    WiFi.enableSTA(false);
+    //cmdserver.end();
   }
 
   if (!wifiTurnedOn && turnWifiOn) {
@@ -214,7 +226,7 @@ void startWifi() {
     dbg.printd("Turning on wifi");
 
     wifiTurnedOn = true;
-    
+
     if (WIFI_AP_MODE) {
       //WiFi.disconnect();                                   // After restart the router could DISABLED lead to reboots with SPIFFS
       //WiFi.softAPdisconnect(true);                         // still keep the old connection
@@ -225,7 +237,7 @@ void startWifi() {
     } else {
       dbg.printd("Trying to setup wifi with ssid %s and password %s.", WIFI_SSID, WIFI_PASS);
       WiFi.begin(WIFI_SSID, WIFI_PASS);
-      while (WiFi.status() != WL_CONNECTED) {        
+      while (WiFi.status() != WL_CONNECTED) {
         delay(500);
         digitalWrite(statusLedPin, true);
         wifiConnectionCount++;
@@ -240,7 +252,8 @@ void startWifi() {
       Serial.println(WiFi.localIP());
     }
   }
-
+  // start http server
+  cmdserver.begin();
   digitalWrite(statusLedPin, wifiTurnedOn);
 }
 
