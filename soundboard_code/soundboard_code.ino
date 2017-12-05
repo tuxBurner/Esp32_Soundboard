@@ -171,7 +171,7 @@ void setup() {
 
 
   wifiTurnedOn = false;
-  turnWifiOn = true;
+  turnWifiOn = false;
 
   startWifi();
 }
