@@ -9,7 +9,7 @@ class DebugPrint {
 
   public:
     DebugPrint();    
-    char* printd(const char* format, ...);
+    char* print(const char* format, ...);
 
   private:
     char sbuf[130];    

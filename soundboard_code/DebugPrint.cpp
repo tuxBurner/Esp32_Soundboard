@@ -12,7 +12,7 @@ DebugPrint::DebugPrint() {
 // Send a line of info to serial output.  Works like vsprintf(), but checks the DEBUG flag.        *
 // Print only if DEBUG flag is true.  Always returns the the formatted string.                     *
 //**************************************************************************************************
-char* DebugPrint::printd(const char* format, ...) {
+char* DebugPrint::print(const char* format, ...) {
   va_list varArgs;                                    // For variable number of params
 
   va_start(varArgs, format);                      // Prepare parameters

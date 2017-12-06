@@ -137,17 +137,17 @@ void setup() {
   Serial.begin(115200);
   Serial.println();
 
-  dbg.printd("Starting ESP32-soundboard Version %s...  Free memory %d", VERSION, ESP.getFreeHeap());
+  dbg.print("Starting ESP32-soundboard Version %s...  Free memory %d", VERSION, ESP.getFreeHeap());
 
   // Init VSPI bus with default or modified pins
   SPI.begin(SPI_SCK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
 
   // start spiffs
   if (!SPIFFS.begin(true)) {
-    dbg.printd("SPIFFS Mount Failed");
+    dbg.print("SPIFFS Mount Failed");
   }
 
-  dbg.printd("Setting status led on pin: %d", statusLedPin);
+  dbg.print("Setting status led on pin: %d", statusLedPin);
   pinMode(statusLedPin, OUTPUT);
 
 
@@ -190,13 +190,13 @@ void loop() {
 //**************************************************************************************************
 void initSoundButtons() {
   // init sound button pins
-  dbg.printd("Initializing: Buttons");
+  dbg.print("Initializing: Buttons");
   int8_t buttonPin;
   for (int i = 0 ; (buttonPin = soundPins[i].gpio) > 0 ; i++ ) {
-    dbg.printd("Initializing Button at pin: %d", buttonPin);
+    dbg.print("Initializing Button at pin: %d", buttonPin);
     pinMode(buttonPin, INPUT_PULLUP);
     soundPins[i].curr = digitalRead(buttonPin);
-    dbg.printd("Button at pin: %d is in state %d", buttonPin, soundPins[i].curr);
+    dbg.print("Button at pin: %d is in state %d", buttonPin, soundPins[i].curr);
   }
 }
 
@@ -208,41 +208,36 @@ void initSoundButtons() {
 void startWifi() {
 
   if (!turnWifiOn && wifiTurnedOn) {
-    dbg.printd("Turning off wifi");
+    dbg.print("Turning off wifi");
     wifiTurnedOn = false;
-
-    /*if (WIFI_AP_MODE) {
-      WiFi.softAPdisconnect(true); // turn off wifi ?
-      }*/
     WiFi.enableAP(false);
     WiFi.enableSTA(false);
-    //httpServer.end();
   }
 
   if (!wifiTurnedOn && turnWifiOn) {
 
-    dbg.printd("Turning on wifi");
+    dbg.print("Turning on wifi");
 
     wifiTurnedOn = true;
 
     if (WIFI_AP_MODE) {
       //WiFi.disconnect();                                   // After restart the router could DISABLED lead to reboots with SPIFFS
       //WiFi.softAPdisconnect(true);                         // still keep the old connection
-      dbg.printd("Trying to setup AP with name %s and password %s.", WIFI_SSID, WIFI_PASS);
+      dbg.print("Trying to setup AP with name %s and password %s.", WIFI_SSID, WIFI_PASS);
       WiFi.softAP(WIFI_SSID, WIFI_PASS);                        // This ESP will be an AP
-      dbg.printd("IP = 192.168.4.1");             // Address for AP
+      dbg.print("IP = 192.168.4.1");             // Address for AP
       delay(5000);
     } else {
-      dbg.printd("Trying to setup wifi with ssid %s and password %s.", WIFI_SSID, WIFI_PASS);
+      dbg.print("Trying to setup wifi with ssid %s and password %s.", WIFI_SSID, WIFI_PASS);
       WiFi.begin(WIFI_SSID, WIFI_PASS);
       while (WiFi.status() != WL_CONNECTED) {
         delay(500);
         digitalWrite(statusLedPin, true);
         wifiConnectionCount++;
-        dbg.printd("Waiting for wifi connection .");
+        dbg.print("Waiting for wifi connection .");
         digitalWrite(statusLedPin, false);
         if (wifiConnectionMaxCount == wifiConnectionCount) {
-          dbg.printd("Could not connect to wifi");
+          dbg.print("Could not connect to wifi");
           break;
         }
       }
@@ -285,9 +280,8 @@ void handleCmd ( AsyncWebServerRequest* request ) {
   String value = p->value();
 
   // Station in the form address:port
-  if ( argument == "play" )
-  {
-    dbg.printd("Play file: %s requested", fileToPlay.c_str());
+  if (argument == "play") {
+    dbg.print("Play file: %s requested", fileToPlay.c_str());
     initStartSound(value);
     request->send ( 200, "text/plain", "Play file:" + fileToPlay);
     return;
@@ -332,7 +326,7 @@ void handleFileUpload(AsyncWebServerRequest *request, String filename, size_t in
   }
   t1 = millis();                                     // Current timestamp
   // Yes, print progress
-  dbg.printd("File upload %s, t = %d msec, len %d, index %d", filename.c_str(), t1 - t, len, index);
+  dbg.print("File upload %s, t = %d msec, len %d, index %d", filename.c_str(), t1 - t, len, index);
   if (len) {                                       // Something to write?
     if ((index != lastindex) || (index == 0)) { // New chunk?
       f.write(data, len);                         // Yes, transfer to SPIFFS
@@ -342,7 +336,7 @@ void handleFileUpload(AsyncWebServerRequest *request, String filename, size_t in
   }
   if (final) {                                    // Was this last chunk?
     f.close();                                       // Yes, clode the file
-    reply = dbg.printd("File upload %s, %d bytes finished", filename.c_str(), totallength);
+    reply = dbg.print("File upload %s, %d bytes finished", filename.c_str(), totallength);
     request->send(200, "", reply);
   }
 }
@@ -368,7 +362,7 @@ void handleFSf(AsyncWebServerRequest* request, const String& filename)
   static String          ct;                           // Content type
   AsyncWebServerResponse *response;                    // For extra headers
 
-  dbg.printd("FileRequest received %s", filename.c_str());
+  dbg.print("FileRequest received %s", filename.c_str());
   ct = getContentType(filename);                    // Get content type
   if ((ct == "") || (filename == "") || (filename == "/favicon.ico"))         // Empty is illegal
   {
@@ -384,7 +378,7 @@ void handleFSf(AsyncWebServerRequest* request, const String& filename)
     response->addHeader("Last-Modified", VERSION);
     request->send(response);
   }
-  dbg.printd("Response sent");
+  dbg.print("Response sent");
 }
 
 
@@ -404,11 +398,11 @@ String getContentType(String filename) {
 */
 bool openLocalFile(fs::FS &fs, const char * path) {
 
-  dbg.printd("Opening file %s", path);
+  dbg.print("Opening file %s", path);
 
   mp3file = fs.open(path, "r");                           // Open the file
   if (!mp3file) {
-    dbg.printd("Error opening file %s", path);
+    dbg.print("Error opening file %s", path);
     return false;
   }
 
@@ -441,11 +435,11 @@ void buttonLoop() {
       // HIGH to LOW change?
       if (!level) {
         if (soundPins[i].sound != "wifi") {
-          dbg.printd("GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound);
+          dbg.print("GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound);
           initStartSound(soundPins[i].sound);
         } else {
           turnWifiOn = !turnWifiOn;
-          dbg.printd("GPIO_%02d is now LOW switching wifi to: %d", buttonPin, turnWifiOn);
+          dbg.print("GPIO_%02d is now LOW switching wifi to: %d", buttonPin, turnWifiOn);
         }
       }
     }
@@ -523,7 +517,7 @@ void mp3loop() {
 
   // STOP requested?
   if (datamode == STOPREQD) {
-    dbg.printd("STOP requested");
+    dbg.print("STOP requested");
 
     mp3file.close();
 
@@ -638,45 +632,9 @@ void emptyring() {
 // Handle the next byte of data from server.                                                       *
 // Chunked transfer encoding aware. Chunk extensions are not supported.                            *
 //**************************************************************************************************
-void handlebyte_ch(uint8_t b, bool force)
-{
+void handlebyte_ch(uint8_t b, bool force) {
   static int  chunksize = 0;                         // Chunkcount read from stream
-
-  /*if (chunked && !force &&
-      (datamode & (DATA |                        // Test op DATA handling
-                   METADATA |
-                   PLAYLISTDATA)))
-    {
-    if (chunkcount == 0)                          // Expecting a new chunkcount?
-    {
-      if (b == '\r')                             // Skip CR
-      {
-        return;
-      }
-      else if (b == '\n')                        // LF ?
-      {
-        chunkcount = chunksize;                     // Yes, set new count
-        chunksize = 0;                              // For next decode
-        return;
-      }
-      // We have received a hexadecimal character.  Decode it and add to the result.
-      b = toupper(b) - '0';                      // Be sure we have uppercase
-      if (b > 9)
-      {
-        b = b - 7;                                  // Translate A..F to 10..15
-      }
-      chunksize = (chunksize << 4) + b;
-    }
-    else
-    {
-      handlebyte(b, force);                       // Normal data byte
-      chunkcount--;                                  // Update count to next chunksize block
-    }
-    }
-    else
-    {*/
   handlebyte(b, force);                         // Normal handling of this byte
-  //}
 }
 
 //**************************************************************************************************
@@ -687,8 +645,7 @@ void handlebyte_ch(uint8_t b, bool force)
 // Note that the buffer the data chunk must start at an address that is a muttiple of 4.           *
 // Set force to true if chunkbuffer must be flushed.                                               *
 //**************************************************************************************************
-void handlebyte(uint8_t b, bool force)
-{
+void handlebyte(uint8_t b, bool force) {
   static uint16_t  playlistcnt;                       // Counter to find right entry in playlist
   static bool      firstmetabyte;                     // True if first metabyte(counter)
   static int       LFcount;                           // Detection of end of header
@@ -710,10 +667,10 @@ void handlebyte(uint8_t b, bool force)
       if (firstchunk)
       {
         firstchunk = false;
-        dbg.printd("First chunk:");                  // Header for printout of first chunk
+        dbg.print("First chunk:");                  // Header for printout of first chunk
         for (i = 0; i < 32; i += 8)              // Print 4 lines
         {
-          dbg.printd("%02X %02X %02X %02X %02X %02X %02X %02X",
+          dbg.print("%02X %02X %02X %02X %02X %02X %02X %02X",
                      buf[i],   buf[i + 1], buf[i + 2], buf[i + 3],
                      buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]);
         }
