@@ -68,7 +68,7 @@ int wifiConnectionMaxCount = 10;
 #define RINGBFSIZ 40960
 
 // global vars
-AsyncWebServer   cmdserver(80);                        // Instance of embedded webserver on port 80
+AsyncWebServer   httpServer(80);                        // Instance of embedded webserver on port 80
 File             mp3file;                               // File containing mp3 on SPIFFS
 
 // TODO: check which are needed
@@ -98,25 +98,22 @@ struct soundPin_struct
 {
   int8_t gpio;                                  // Pin number
   bool curr;                                    // Current state, true = HIGH, false = LOW
-  String sound;                                 // which sound nr to play
-  bool wifiBtn;                                 // when true this is the button handling the wifi mode
+  String sound;                                 // which sound nr to play or wifi when to handle wifi stuff
 } ;
 
 soundPin_struct soundPins[] = {
-  {12, false, "1", false}, // sheep
-  {13, false, "2", false}, // dog
-  {14, false, "3", false}, // cat
-  {27, false, "4", false}, // horse
-  {26, false, "", true},   // orange square
-  {25, false, "5", false},  // pig
-  {33, false, "6", false}, // cow
-
-
-  //{32, false, "2", false}  // ???
-  //{35, false, "2", false}  // ???
-  //{34, false, "2", false},
-  //{39, false, "2", false},
-  //{36, false, "2", false}
+  {15, false, "wifi"}, // blue square
+  {12, false, "1"}, // sheep
+  {13, false, "2"}, // dog
+  {14, false, "3"}, // cat
+  {27, false, "4"}, // horse
+  {26, false, "5"}, // chicken
+  {25, false, "6"}, // pig
+  {33, false, "7"}, // cow
+  {32, false, "8"}, // duck
+  {22, false, "9"}, // bell    
+  {3, false, "11"},  // purple square
+  {21, false, "12"} // red square
 };
 
 
@@ -161,18 +158,19 @@ void setup() {
   // Initialize VS1053 player
   vs1053player.begin();
 
-  delay(10);  
+  delay(10);
   // Handle file from FS
-  cmdserver.onNotFound(handleFS);
+  httpServer.onNotFound(handleFS);
   // Handle file uploads
-  cmdserver.onFileUpload(handleFileUpload);
+  httpServer.onFileUpload(handleFileUpload);
   // Handle startpage
-  cmdserver.on ( "/", handleCmd ) ;
+  httpServer.on ( "/", handleCmd ) ;
 
 
   wifiTurnedOn = false;
-  turnWifiOn = false;
+  turnWifiOn = true;
 
+  // start the wifi ?
   startWifi();
 }
 
@@ -218,7 +216,7 @@ void startWifi() {
       }*/
     WiFi.enableAP(false);
     WiFi.enableSTA(false);
-    //cmdserver.end();
+    //httpServer.end();
   }
 
   if (!wifiTurnedOn && turnWifiOn) {
@@ -253,7 +251,7 @@ void startWifi() {
     }
   }
   // start http server
-  cmdserver.begin();
+  httpServer.begin();
   digitalWrite(statusLedPin, wifiTurnedOn);
 }
 
@@ -442,7 +440,7 @@ void buttonLoop() {
       soundPins[i].curr = level;
       // HIGH to LOW change?
       if (!level) {
-        if (soundPins[i].wifiBtn == false) {
+        if (soundPins[i].sound != "wifi") {
           dbg.printd("GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound);
           initStartSound(soundPins[i].sound);
         } else {
