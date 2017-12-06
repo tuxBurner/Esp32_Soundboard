@@ -1,0 +1,34 @@
+{
+  "name": "esp32soundboardapp",
+  "version": "1.0.0",
+  "description": "App for handling the esp32 soundboard",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuxBurner/Esp32_Soundboard.git"
+  },
+  "keywords": [
+    "ESP32",
+    "VS1053",
+    "Soundboard",
+    "myinstants"
+  ],
+  "author": "tuxBurner",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/tuxBurner/Esp32_Soundboard/issues"
+  },
+  "homepage": "https://github.com/tuxBurner/Esp32_Soundboard#readme",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.2",
+    "express": "^4.16.2",
+    "request": "^2.83.0",
+    "winston": "^2.4.0"
+  },
+  "devDependencies": {
+    "nodemon": "^1.12.5"
+  }
+}

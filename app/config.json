@@ -1,0 +1,20 @@
+{
+  "webserverPort" : 8080,
+  "esp32Ip" : "192.168.0.116",
+  "mp3FilesFolder" : "./sounds",
+  "buttonsMapping" : {
+    "sheep" : 1,
+    "dog" : 2,
+    "cat" : 3,
+    "horse" : 4,
+    "chicken" : 5,
+    "pig" : 6,
+    "cow" : 7,
+    "duck" : 8,
+    "bell" : 9 ,
+    "purple square" : 11,
+    "red square" : 12
+  }
+
+
+}
