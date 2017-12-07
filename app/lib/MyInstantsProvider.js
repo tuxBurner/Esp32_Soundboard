@@ -23,6 +23,8 @@ class MyInstantsProvider extends BaseClass {
    */
   search(query, wsCallBack) {
 
+    if(query === undefined) query = '';
+
 
     const opts = {
       url: this.baseSearchUrl + query,

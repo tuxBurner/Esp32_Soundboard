@@ -168,7 +168,7 @@ void setup() {
 
 
   wifiTurnedOn = false;
-  turnWifiOn = true;
+  turnWifiOn = false;
 
   // start the wifi ?
   startWifi();
