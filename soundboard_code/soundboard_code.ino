@@ -55,9 +55,11 @@ void        handlebyte_ch(uint8_t b, bool force = false);
 #define NAME "SeppelsSB"
 
 // wifi settings
-#define WIFI_AP_MODE false
-#define WIFI_SSID "suckOnMe"
+bool WIFI_AP_MODE = false;
+#define WIFI_SSID "suckOnMe1"
 #define WIFI_PASS "leatomhannes"
+#define WIFI_AP_SSID "soundboard"
+#define WIFI_AP_PASS "pass"
 
 int wifiConnectionCount = 0;
 int wifiConnectionMaxCount = 10;
@@ -66,7 +68,7 @@ int wifiConnectionMaxCount = 10;
 // Ringbuffer for smooth playing. 20000 bytes is 160 Kbits, about 1.5 seconds at 128kb bitrate.
 // Use a multiple of 1024 for optimal handling of bufferspace.  See definition of tmpbuff.
 //#define RINGBFSIZ 40960
-#define RINGBFSIZ 1024
+#define RINGBFSIZ 256
 
 // global vars
 AsyncWebServer   httpServer(80);                        // Instance of embedded webserver on port 80
@@ -112,7 +114,7 @@ soundPin_struct soundPins[] = {
   {25, false, "6"}, // pig
   {33, false, "7"}, // cow
   {32, false, "8"}, // duck
-  {22, false, "9"}, // bell    
+  {22, false, "9"}, // bell
   {3, false, "11"},  // purple square
   {21, false, "12"} // red square
 };
@@ -219,17 +221,18 @@ void startWifi() {
 
     dbg.print("Turning on wifi");
 
-    wifiTurnedOn = true;
+
 
     if (WIFI_AP_MODE) {
       //WiFi.disconnect();                                   // After restart the router could DISABLED lead to reboots with SPIFFS
       //WiFi.softAPdisconnect(true);                         // still keep the old connection
-      dbg.print("Trying to setup AP with name %s and password %s.", WIFI_SSID, WIFI_PASS);
-      WiFi.softAP(WIFI_SSID, WIFI_PASS);                        // This ESP will be an AP
+      dbg.print("Trying to setup AP with name: %s and password: %s.", WIFI_AP_SSID, WIFI_AP_PASS);
+      WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASS);                        // This ESP will be an AP
       dbg.print("IP = 192.168.4.1");             // Address for AP
-      delay(5000);
+      delay(1000);
+      wifiTurnedOn = true;
     } else {
-      dbg.print("Trying to setup wifi with ssid %s and password %s.", WIFI_SSID, WIFI_PASS);
+      dbg.print("Trying to setup wifi with ssid: %s and password: %s.", WIFI_SSID, WIFI_PASS);
       WiFi.begin(WIFI_SSID, WIFI_PASS);
       while (WiFi.status() != WL_CONNECTED) {
         delay(500);
@@ -238,9 +241,11 @@ void startWifi() {
         dbg.print("Waiting for wifi connection .");
         digitalWrite(statusLedPin, false);
         if (wifiConnectionMaxCount == wifiConnectionCount) {
-          dbg.print("Could not connect to wifi");
+          dbg.print("Could not connect to wifi turning ap mode on");
+          WIFI_AP_MODE = true;
           break;
         }
+        wifiTurnedOn = true;
       }
 
       Serial.println(WiFi.localIP());
@@ -438,9 +443,11 @@ void buttonLoop() {
         if (soundPins[i].sound != "wifi") {
           dbg.print("GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound);
           initStartSound(soundPins[i].sound);
+          return;
         } else {
           turnWifiOn = !turnWifiOn;
           dbg.print("GPIO_%02d is now LOW switching wifi to: %d", buttonPin, turnWifiOn);
+          return;
         }
       }
     }
@@ -672,8 +679,8 @@ void handlebyte(uint8_t b, bool force) {
         for (i = 0; i < 32; i += 8)              // Print 4 lines
         {
           dbg.print("%02X %02X %02X %02X %02X %02X %02X %02X",
-                     buf[i],   buf[i + 1], buf[i + 2], buf[i + 3],
-                     buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]);
+                    buf[i],   buf[i + 1], buf[i + 2], buf[i + 3],
+                    buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]);
         }
       }
       vs1053player.playChunk(buf, bufcnt);         // Yes, send to player
