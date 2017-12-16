@@ -56,7 +56,7 @@ void        handlebyte_ch(uint8_t b, bool force = false);
 
 // wifi settings
 bool WIFI_AP_MODE = false;
-#define WIFI_SSID "suckOnMe1"
+#define WIFI_SSID "suckOnMe"
 #define WIFI_PASS "leatomhannes"
 #define WIFI_AP_SSID "soundboard"
 #define WIFI_AP_PASS "pass"

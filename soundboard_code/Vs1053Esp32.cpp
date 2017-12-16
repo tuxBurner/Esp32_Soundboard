@@ -57,7 +57,7 @@ void Vs1053Esp32::begin() {
   await_data_request();
   _endFillByte = wram_read(0x1E06) & 0xFF;
 
-  _dbg.print("endFillByte is %X", _endFillByte);
+  _dbg.print("Vs1053: endFillByte is %X", _endFillByte);
 
   delay(100);
 }
@@ -100,12 +100,12 @@ void Vs1053Esp32::stopSong() {
     if ((modereg & _BV(_SM_CANCEL)) == 0)
     {
       sdi_send_fillers(2052);
-      _dbg.print("Song stopped correctly after %d msec", i * 10);
+      _dbg.print("Vs1053: Song stopped correctly after %d msec", i * 10);
       return;
     }
     delay(10);
   }
-  printDetails("Song stopped incorrectly!");
+  printDetails("Vs1053: Song stopped incorrectly!");
 }
 
 /**
@@ -135,8 +135,8 @@ void Vs1053Esp32::printDetails(const char *header) {
   uint8_t      i;
 
   _dbg.print(header);
-  _dbg.print("REG   Contents");
-  _dbg.print("---   -----");
+  _dbg.print("Vs1053: REG   Contents");
+  _dbg.print("Vs1053: ---   -----");
   for (i = 0; i <= _SCI_num_registers; i++)
   {
     regbuf[i] = read_register(i);
@@ -144,7 +144,7 @@ void Vs1053Esp32::printDetails(const char *header) {
   for (i = 0; i <= _SCI_num_registers; i++)
   {
     delay(5);
-    _dbg.print("%3X - %5X", i, regbuf[i]);
+    _dbg.print("Vs1053: %3X - %5X", i, regbuf[i]);
   }
 }
 
@@ -163,7 +163,7 @@ bool Vs1053Esp32::testComm(const char *header) {
 
   if (!digitalRead(_dreq_pin))
   {
-    _dbg.print("VS1053 not properly installed!");
+    _dbg.print("Vs1053: VS1053 not properly installed!");
     // Allow testing without the VS1053 module
     pinMode(_dreq_pin,  INPUT_PULLUP);               // DREQ is now input with pull-up
     return false;                                      // Return bad result
@@ -184,7 +184,7 @@ bool Vs1053Esp32::testComm(const char *header) {
     r2 = read_register(_SCI_VOL);                    // Read back a second time
     if (r1 != r2 || i != r1 || i != r2)             // Check for 2 equal reads
     {
-      _dbg.print("VS1053 error retry SB:%04X R1:%04X R2:%04X", i, r1, r2);
+      _dbg.print("Vs1053: VS1053 error retry SB:%04X R1:%04X R2:%04X", i, r1, r2);
       cnt++;
       delay(10);
     }
