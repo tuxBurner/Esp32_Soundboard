@@ -36,7 +36,6 @@ void        handlebyte_ch(uint8_t b, bool force);
 
 #include <SPI.h>
 #include <WiFi.h>
-#include <ESPAsyncWebServer.h>
 #include <FS.h>
 #include <SPIFFS.h>
 #include "DebugPrint.h"
@@ -72,7 +71,7 @@ int wifiConnectionMaxCount = 30;
 #define RINGBFSIZ 256
 
 // global vars
-AsyncWebServer   httpServer(80);                        // Instance of embedded webserver on port 80
+//AsyncWebServer   httpServer(80);                        // Instance of embedded webserver on port 80
 File             mp3file;                               // File containing mp3 on SPIFFS
 
 // Data mode the soundboard can currently have
@@ -106,6 +105,9 @@ struct soundPin_struct
   String sound;                                 // which sound nr to play or wifi when to handle wifi stuff
 } ;
 
+/**
+ * The actual button mapping
+ */
 soundPin_struct soundPins[] = {
   {15, false, "wifi"}, // blue square
   {12, false, "1"}, // sheep
@@ -124,6 +126,7 @@ soundPin_struct soundPins[] = {
 
 // what time is the debounce delay ?
 unsigned long lastButtonCheck = 0;
+// what is the debounce delay
 unsigned long debounceDelay = 100;
 
 // we need debug :)
@@ -131,6 +134,9 @@ DebugPrint dbg;
 
 // the soundboard
 Vs1053Esp32 vs1053player(VS1053_CS, VS1053_DCS, VS1053_DREQ);
+
+// the http server
+WiFiServer httpServer(80);
 
 
 //**************************************************************************************************
@@ -241,7 +247,7 @@ void startWifi() {
       WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASS);                        // This ESP will be an AP
       dbg.print("IP = 192.168.4.1");             // Address for AP
       delay(1000);
-      wifiTurnedOn = true;      
+      wifiTurnedOn = true;
     } else {
       dbg.print("Trying to setup wifi with ssid: %s and password: %s.", WIFI_SSID, WIFI_PASS);
       WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -255,7 +261,7 @@ void startWifi() {
           dbg.print("Could not connect to wifi turning ap mode on");
           WIFI_AP_MODE = true;
           break;
-        }        
+        }
       }
 
       wifiTurnedOn = true;
