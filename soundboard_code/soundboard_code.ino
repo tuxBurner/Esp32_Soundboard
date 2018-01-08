@@ -28,10 +28,11 @@
 //**************************************************************************************************
 // Forward declaration of various functions.                                                       *
 //**************************************************************************************************
-void        handlebyte_ch(uint8_t b, bool force = false);
+void        handlebyte_ch(uint8_t b, bool force);
 
 // Release Notes
 // 26-11-2017 Initial Code started
+// 16-12-2017 Got the Stuff Working
 
 #include <SPI.h>
 #include <WiFi.h>
@@ -42,7 +43,7 @@ void        handlebyte_ch(uint8_t b, bool force = false);
 #include "Vs1053Esp32.h"
 
 // defines and includes
-#define VERSION "So, 26 Nov 2017 21:49:00 GMT"
+#define VERSION "Sa, 16 Dec 2017"
 
 // vs1053 pins
 #define VS1053_DCS    16
@@ -62,7 +63,7 @@ bool WIFI_AP_MODE = false;
 #define WIFI_AP_PASS "pass"
 
 int wifiConnectionCount = 0;
-int wifiConnectionMaxCount = 10;
+int wifiConnectionMaxCount = 30;
 
 
 // Ringbuffer for smooth playing. 20000 bytes is 160 Kbits, about 1.5 seconds at 128kb bitrate.
@@ -74,12 +75,13 @@ int wifiConnectionMaxCount = 10;
 AsyncWebServer   httpServer(80);                        // Instance of embedded webserver on port 80
 File             mp3file;                               // File containing mp3 on SPIFFS
 
-// TODO: check which are needed
-enum datamode_t {INIT = 1, HEADER = 2, DATA = 4,        // State for datastream
-                 METADATA = 8, PLAYLISTINIT = 16,
-                 PLAYLISTHEADER = 32, PLAYLISTDATA = 64,
-                 STOPREQD = 128, STOPPED = 256
+// Data mode the soundboard can currently have
+enum datamode_t {DATA = 4,        // State for datastream
+                 STOPREQD = 128,  // Request for stopping current song
+                 STOPPED = 256    // State for stopped
                 };
+
+
 datamode_t       datamode;                                // State of datastream
 uint16_t         rcount = 0;                              // Number of bytes in ringbuffer
 uint16_t         rbwindex = 0;                            // Fill pointer in ringbuffer
@@ -153,7 +155,6 @@ void setup() {
   dbg.print("Setting status led on pin: %d", statusLedPin);
   pinMode(statusLedPin, OUTPUT);
 
-
   initSoundButtons();
 
   // Create ring buffer
@@ -162,19 +163,12 @@ void setup() {
   vs1053player.begin();
 
   delay(10);
-  // Handle file from FS
-  httpServer.onNotFound(handleFS);
-  // Handle file uploads
-  httpServer.onFileUpload(handleFileUpload);
-  // Handle startpage
-  httpServer.on ( "/", handleCmd ) ;
-
 
   wifiTurnedOn = false;
   turnWifiOn = false;
 
   // start the wifi ?
-  startWifi();
+  //startWifi();
 }
 
 /**
@@ -184,7 +178,24 @@ void loop() {
   vs1053player.setVolume(volume);
   buttonLoop();
   mp3loop();
-  startWifi();
+  //startWifi();
+}
+
+//**************************************************************************************************
+//                              INIT THE HTTP SERVER                                               *
+//**************************************************************************************************
+void initHttpServer() {
+  //httpServer.end();
+  //httpServer.reset();
+
+  // Handle file from FS
+  httpServer.onNotFound(handleFS);
+  // Handle file uploads
+  httpServer.onFileUpload(handleFileUpload);
+  // Handle startpage
+  httpServer.on ( "/", handleCmd ) ;
+
+  httpServer.begin();
 }
 
 
@@ -230,7 +241,7 @@ void startWifi() {
       WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASS);                        // This ESP will be an AP
       dbg.print("IP = 192.168.4.1");             // Address for AP
       delay(1000);
-      wifiTurnedOn = true;
+      wifiTurnedOn = true;      
     } else {
       dbg.print("Trying to setup wifi with ssid: %s and password: %s.", WIFI_SSID, WIFI_PASS);
       WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -244,15 +255,15 @@ void startWifi() {
           dbg.print("Could not connect to wifi turning ap mode on");
           WIFI_AP_MODE = true;
           break;
-        }
-        wifiTurnedOn = true;
+        }        
       }
 
+      wifiTurnedOn = true;
       Serial.println(WiFi.localIP());
     }
   }
   // start http server
-  httpServer.begin();
+  initHttpServer();
   digitalWrite(statusLedPin, wifiTurnedOn);
 }
 
@@ -458,9 +469,7 @@ void buttonLoop() {
 //                                      INIT SOUND TO PLAY                                         *
 //**************************************************************************************************
 void initStartSound(String soundToPlay) {
-  if ( datamode & ( HEADER | DATA | METADATA | PLAYLISTINIT |
-                    PLAYLISTHEADER | PLAYLISTDATA ) )
-  {
+  if (datamode & ( DATA)) {
     datamode = STOPREQD ;                           // Request STOP
   }
 
@@ -486,10 +495,7 @@ void mp3loop() {
 
   // Try to keep the ringbuffer filled up by adding as much bytes as possible
   // Test op playing
-  if (datamode & (INIT | HEADER | DATA |
-                  METADATA | PLAYLISTINIT |
-                  PLAYLISTHEADER |
-                  PLAYLISTDATA)) {
+  if (datamode & (DATA)) {
 
     // Get free ringbuffer space
     rs = ringspace();
@@ -520,7 +526,7 @@ void mp3loop() {
   // Try to keep VS1053 filled
   while (vs1053player.data_request() && ringavail()) {
     // Yes, handle it
-    handlebyte_ch(getring());
+    handlebyte_ch(getring(), false);
   }
 
   // STOP requested?
@@ -539,14 +545,10 @@ void mp3loop() {
     delay(500);
   }
 
-  if (datamode & (INIT | HEADER | DATA |           // Test op playing
-                  METADATA | PLAYLISTINIT |
-                  PLAYLISTHEADER |
-                  PLAYLISTDATA))
-  {
+  // Test op playing
+  if (datamode & (DATA))  {
     av = mp3file.available();                           // Bytes left in file
-    if ((av == 0) && (ringavail() == 0))         // End of mp3 data?
-    {
+    if ((av == 0) && (ringavail() == 0)) {        // End of mp3 data?
       datamode = STOPREQD;                              // End of local mp3-file detected
       filereq = false;
     }
