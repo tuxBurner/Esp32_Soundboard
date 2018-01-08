@@ -106,8 +106,8 @@ struct soundPin_struct
 } ;
 
 /**
- * The actual button mapping
- */
+   The actual button mapping
+*/
 soundPin_struct soundPins[] = {
   {15, false, "wifi"}, // blue square
   {12, false, "1"}, // sheep
@@ -171,10 +171,7 @@ void setup() {
   delay(10);
 
   wifiTurnedOn = false;
-  turnWifiOn = false;
-
-  // start the wifi ?
-  //startWifi();
+  turnWifiOn = true;
 }
 
 /**
@@ -184,13 +181,17 @@ void loop() {
   vs1053player.setVolume(volume);
   buttonLoop();
   mp3loop();
-  //startWifi();
+  startWifi();
+  httpServerLoop();
 }
 
 //**************************************************************************************************
 //                              INIT THE HTTP SERVER                                               *
 //**************************************************************************************************
 void initHttpServer() {
+
+  httpServer.begin();
+
   //httpServer.end();
   //httpServer.reset();
 
@@ -232,6 +233,8 @@ void startWifi() {
     wifiTurnedOn = false;
     WiFi.enableAP(false);
     WiFi.enableSTA(false);
+    //httpServer.end();
+    return;
   }
 
   if (!wifiTurnedOn && turnWifiOn) {
@@ -267,10 +270,71 @@ void startWifi() {
       wifiTurnedOn = true;
       Serial.println(WiFi.localIP());
     }
+
+    // start http server
+    initHttpServer();
   }
-  // start http server
-  initHttpServer();
+
   digitalWrite(statusLedPin, wifiTurnedOn);
+}
+
+/**
+   Is called in the main loop and checks if we have any http client calling the server
+*/
+void httpServerLoop() {
+  // do we have a new client ?
+  WiFiClient client = httpServer.available();
+  if (!client) {
+    return;
+  }
+
+  dbg.print("Http: new client connected %s", client.remoteIP().toString().c_str());
+
+  String currentLine = "";                // make a String to hold incoming data from the client
+
+  while (client.connected()) {            // loop while the client's connected
+    if (client.available()) {             // if there's bytes to read from the client,
+      char c = client.read();             // read a byte, then
+      //Serial.write(c);                    // print it out the serial monitor
+      if (c == '\n') {                    // if the byte is a newline character
+
+        // if the current line is blank, you got two newline characters in a row.
+        // that's the end of the client HTTP request, so send a response:
+        if (currentLine.length() == 0) {
+          // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+          // and a content-type so the client knows what's coming, then a blank line:
+          client.println("HTTP/1.1 200 OK");
+          client.println("Content-type:text/html");
+          client.println();
+
+          // the content of the HTTP response follows the header:
+          client.print("Click <a href=\"/H\">here</a> to turn the LED on pin 5 on.<br>");
+          client.print("Click <a href=\"/L\">here</a> to turn the LED on pin 5 off.<br>");
+
+          // The HTTP response ends with another blank line:
+          client.println();
+          // break out of the while loop:
+          break;
+        } else {    // if you got a newline, then clear currentLine:
+          dbg.print("Http: Client send line: '%s'", currentLine.c_str());
+          currentLine = "";
+        }
+      } else if (c != '\r') {  // if you got anything else but a carriage return character,
+        currentLine += c;      // add it to the end of the currentLine
+      }
+
+      // Check to see if the client request was "GET /H" or "GET /L":
+      /*if (currentLine.endsWith("GET /H")) {
+        digitalWrite(5, HIGH);               // GET /H turns the LED on
+        }
+        if (currentLine.endsWith("GET /L")) {
+        digitalWrite(5, LOW);                // GET /L turns the LED off
+        }*/
+    }
+  }
+  // close the connection:
+  client.stop();
+  Serial.println("Client Disconnected.");
 }
 
 
@@ -321,7 +385,7 @@ void startWifi() {
   }
 
   request->send(404, "text/plain", "No valid command.");
-}*/
+  }*/
 
 
 
@@ -362,7 +426,7 @@ void startWifi() {
     reply = dbg.print("File upload %s, %d bytes finished", filename.c_str(), totallength);
     request->send(200, "", reply);
   }
-}*/
+  }*/
 
 
 //******************************************************************************************
@@ -371,9 +435,9 @@ void startWifi() {
 // Handling of requesting files from the SPIFFS. Example: /favicon.ico                     *
 //******************************************************************************************
 /*void handleFS(AsyncWebServerRequest* request)
-{
+  {
   handleFSf(request, request->url());               // Rest of handling
-}*/
+  }*/
 
 //******************************************************************************************
 //                                H A N D L E F S F                                        *
@@ -381,7 +445,7 @@ void startWifi() {
 // Handling of requesting files from the SPIFFS/PROGMEM. Example: /favicon.ico             *
 //******************************************************************************************
 /*void handleFSf(AsyncWebServerRequest* request, const String& filename)
-{
+  {
   static String          ct;                           // Content type
   AsyncWebServerResponse *response;                    // For extra headers
 
@@ -402,7 +466,7 @@ void startWifi() {
     request->send(response);
   }
   dbg.print("Response sent");
-}*/
+  }*/
 
 
 //******************************************************************************************
@@ -457,17 +521,19 @@ void buttonLoop() {
       soundPins[i].curr = level;
       // HIGH to LOW change?
       if (!level) {
+
+        dbg.print("HMMMMMMMMMMMMMMMMMMMMMMMM %d", i);
+
         if (soundPins[i].sound != "wifi") {
-          dbg.print("GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound);
+          dbg.print("GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound.c_str());
           initStartSound(soundPins[i].sound);
-          return;
         } else {
           turnWifiOn = !turnWifiOn;
           dbg.print("GPIO_%02d is now LOW switching wifi to: %d", buttonPin, turnWifiOn);
-          return;
         }
       }
-    }
+      return;
+    } // level off the button changed
   }
 }
 
