@@ -195,13 +195,13 @@ void initHttpServer() {
   //httpServer.reset();
 
   // Handle file from FS
-  httpServer.onNotFound(handleFS);
+  //httpServer.onNotFound(handleFS);
   // Handle file uploads
-  httpServer.onFileUpload(handleFileUpload);
+  //httpServer.onFileUpload(handleFileUpload);
   // Handle startpage
-  httpServer.on ( "/", handleCmd ) ;
+  //httpServer.on ( "/", handleCmd ) ;
 
-  httpServer.begin();
+  ///httpServer.begin();
 }
 
 
@@ -286,7 +286,7 @@ void startWifi() {
 // Example: "/?upvolume=5&version=0.9775479450590543"                                      *
 // The save and the list commands are handled specially.                                   *
 //******************************************************************************************
-void handleCmd ( AsyncWebServerRequest* request ) {
+/*void handleCmd ( AsyncWebServerRequest* request ) {
 
   // Get number of arguments
   int params = request->params();
@@ -321,7 +321,7 @@ void handleCmd ( AsyncWebServerRequest* request ) {
   }
 
   request->send(404, "text/plain", "No valid command.");
-}
+}*/
 
 
 
@@ -330,7 +330,7 @@ void handleCmd ( AsyncWebServerRequest* request ) {
 //******************************************************************************************
 // Handling of upload request.  Write file to SPIFFS.                                      *
 //******************************************************************************************
-void handleFileUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+/*void handleFileUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
   String          path;                              // Filename including "/"
   static File     f;                                 // File handle output file
   char*           reply;                             // Reply for webserver
@@ -362,7 +362,7 @@ void handleFileUpload(AsyncWebServerRequest *request, String filename, size_t in
     reply = dbg.print("File upload %s, %d bytes finished", filename.c_str(), totallength);
     request->send(200, "", reply);
   }
-}
+}*/
 
 
 //******************************************************************************************
@@ -370,17 +370,17 @@ void handleFileUpload(AsyncWebServerRequest *request, String filename, size_t in
 //******************************************************************************************
 // Handling of requesting files from the SPIFFS. Example: /favicon.ico                     *
 //******************************************************************************************
-void handleFS(AsyncWebServerRequest* request)
+/*void handleFS(AsyncWebServerRequest* request)
 {
   handleFSf(request, request->url());               // Rest of handling
-}
+}*/
 
 //******************************************************************************************
 //                                H A N D L E F S F                                        *
 //******************************************************************************************
 // Handling of requesting files from the SPIFFS/PROGMEM. Example: /favicon.ico             *
 //******************************************************************************************
-void handleFSf(AsyncWebServerRequest* request, const String& filename)
+/*void handleFSf(AsyncWebServerRequest* request, const String& filename)
 {
   static String          ct;                           // Content type
   AsyncWebServerResponse *response;                    // For extra headers
@@ -402,7 +402,7 @@ void handleFSf(AsyncWebServerRequest* request, const String& filename)
     request->send(response);
   }
   dbg.print("Response sent");
-}
+}*/
 
 
 //******************************************************************************************
