@@ -577,7 +577,9 @@ void buttonLoop() {
 
 
   int8_t buttonPin;
-  for (int i = 0 ; (buttonPin = soundPins[i].gpio) > 0 ; i++ ) {
+  for (int i = 0 ; i < 12 ; i++ ) {
+
+    buttonPin = soundPins[i].gpio;
     // get the current state of the button
     bool level = (digitalRead(buttonPin) == HIGH);
 
@@ -587,9 +589,6 @@ void buttonLoop() {
       soundPins[i].curr = level;
       // HIGH to LOW change?
       if (!level) {
-
-        dbg.print("Debug", "HMMMMMMMMMMMMMMMMMMMMMMMM %d", i);
-
         if (soundPins[i].sound != "wifi") {
           dbg.print("Button", "GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound.c_str());
           initStartSound(soundPins[i].sound);
