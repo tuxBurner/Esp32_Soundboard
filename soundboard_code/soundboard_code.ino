@@ -461,9 +461,12 @@ void httpDownloadMp3(WiFiClient client, String fileToDownload) {
   client.println();
   //client.println("Playing sound: " + fileToPlay);
   while (file.available()) {
-    client.print(file.read());
+    client.write(file.read());
   }
-  
+  /*while (file.available()) {
+    Serial.write(file.read());
+  }*/
+
   client.println();
 
   file.close();
