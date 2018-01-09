@@ -75,19 +75,6 @@ enum datamode_t {DATA = 1,        // State for datastream
                  STOPPED = 4    // State for stopped
                 };
 
-// the action a http client wants to perform
-enum httpClientAction_t {
-  NONE = 1,
-  FAILURE = 2,
-  PLAY = 4,
-  INFO = 8,
-  UPLOAD = 16
-};
-// current action of the http client
-httpClientAction_t httpClientAction = NONE;
-const String httpHeaderOk = "HTTP/1.1 200 Ok";
-const String httpHeaderFailure = "HTTP/1.1 404 Not Found";
-
 datamode_t       datamode;                                // State of datastream
 uint16_t         rcount = 0;                              // Number of bytes in ringbuffer
 uint16_t         rbwindex = 0;                            // Fill pointer in ringbuffer
@@ -272,6 +259,22 @@ void startWifi() {
 /**
    Is called in the main loop and checks if we have any http client calling the server
 */
+
+// the action a http client wants to perform
+enum httpClientAction_t {
+  NONE = 1,
+  FAILURE = 2,
+  PLAY = 4,
+  INFO = 8,
+  UPLOAD_INIT = 16,
+  UPLOAD_BOUNDARY_INIT = 32,
+  UPLOAD_BOUNDARY_FOUND = 64
+};
+
+// current action of the http client
+httpClientAction_t httpClientAction = NONE;
+const String httpHeaderOk = "HTTP/1.1 200 Ok";
+const String httpHeaderFailure = "HTTP/1.1 404 Not Found";
 void httpServerLoop() {
   // do we have a new client ?
   WiFiClient client = httpServer.available();
@@ -289,6 +292,9 @@ void httpServerLoop() {
   char imagebuf[MAX_IMAGE_SIZE];
   String getDataToHandle = "";
 
+  // stores the upload boundary
+  String uploadBoundary = "";
+
 
   while (client.connected()) {            // loop while the client's connected
     if (client.available()) {             // if there's bytes to read from the client,
@@ -299,7 +305,7 @@ void httpServerLoop() {
 
         dbg.print("Http: Client send line: %s", currentLine.c_str());
 
-        // Check to see if the client request was "GET /H" or "GET /L":
+        // client wants to play a sound on the sound board
         if (currentLine.startsWith("GET /play/") && httpClientAction == NONE) {
 
           dbg.print("Http", "Client wants to play a sound from the board");
@@ -313,11 +319,36 @@ void httpServerLoop() {
             getDataToHandle = currentLine.substring(lastSlashIdx + 1);
             httpClientAction = PLAY;
           }
-        } else if (currentLine.startsWith("POST /upload") && httpClientAction == NONE) {
-          httpClientAction = UPLOAD;
-        } else if (currentLine.startsWith("GET /info") && httpClientAction == NONE) {
+        
+        }
+
+        // client wants to upload a file
+        if (currentLine.startsWith("POST /upload") && httpClientAction == NONE) { // upload initialized
+          httpClientAction = UPLOAD_INIT;          
+        }
+
+        // client wants to upload a file and we found a boundary
+        if (currentLine.startsWith("content-type: multipart/form-data; boundary=") && httpClientAction == UPLOAD_INIT) {
+          uploadBoundary = currentLine.substring(44);
+          dbg.print("Http Upload", "Found boundary: %s", uploadBoundary.c_str());
+          httpClientAction = UPLOAD_BOUNDARY_INIT;
+
+        } 
+
+        // the upload boundary actualy exists in the request
+        if(currentLine.startsWith(uploadBoundary) && httpClientAction == UPLOAD_BOUNDARY_INIT) {
+          dbg.print("Http Upload", "Found boundary in request: %s", uploadBoundary.c_str());
+          httpClientAction = UPLOAD_BOUNDARY_FOUND;
+        }
+
+
+        // client wants some info about this board
+        if (currentLine.startsWith("GET /info") && httpClientAction == NONE) {
           httpClientAction = INFO;
-        } else if ((currentLine.startsWith("GET") || currentLine.startsWith("POST")) && httpClientAction == NONE) {
+        } 
+        
+        // not a valid request with get or post
+        if ((currentLine.startsWith("GET") || currentLine.startsWith("POST")) && httpClientAction == NONE) {
           // none of the action matches
           httpClientAction = FAILURE;
         }
