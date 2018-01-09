@@ -142,7 +142,7 @@ void setup() {
   Serial.begin(115200);
   Serial.println();
 
-  dbg.print("Starting ESP32-soundboard Version %s...  Free memory %d", VERSION, ESP.getFreeHeap());
+  dbg.print("Main", "Starting ESP32-soundboard Version %s...  Free memory %d", VERSION, ESP.getFreeHeap());
 
   // Init VSPI bus with default or modified pins
   SPI.begin(SPI_SCK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
@@ -230,7 +230,7 @@ void startWifi() {
       delay(1000);
       wifiTurnedOn = true;
     } else {
-      dbg.print("Wifi: Trying to setup wifi with ssid: %s and password: %s.", WIFI_SSID, WIFI_PASS);
+      dbg.print("Wifi", "Trying to setup wifi with ssid: %s and password: %s.", WIFI_SSID, WIFI_PASS);
       WiFi.begin(WIFI_SSID, WIFI_PASS);
       while (WiFi.status() != WL_CONNECTED) {
         delay(500);
@@ -246,7 +246,7 @@ void startWifi() {
       }
 
       wifiTurnedOn = true;
-      dbg.print("Wifi: Ip address of esp is %s", WiFi.localIP().toString().c_str());
+      dbg.print("Wifi", "Ip address of esp is %s", WiFi.localIP().toString().c_str());
     }
 
     // start http server
@@ -268,7 +268,8 @@ enum httpClientAction_t {
   INFO = 8,
   UPLOAD_INIT = 16,
   UPLOAD_BOUNDARY_INIT = 32,
-  UPLOAD_BOUNDARY_FOUND = 64
+  UPLOAD_BOUNDARY_FOUND = 64,
+  UPLOAD_FILE_NAME_FOUND = 128
 };
 
 // current action of the http client
@@ -282,7 +283,7 @@ void httpServerLoop() {
     return;
   }
 
-  dbg.print("Http: new client connected %s", client.remoteIP().toString().c_str());
+  dbg.print("Http", "new client connected %s", client.remoteIP().toString().c_str());
 
   String currentLine = "";                // make a String to hold incoming data from the client
 
@@ -303,7 +304,7 @@ void httpServerLoop() {
       if (c == '\n') {                    // if the byte is a newline character
 
 
-        dbg.print("Http: Client send line: %s", currentLine.c_str());
+        dbg.print("Http", "Client send line: %s", currentLine.c_str());
 
         // client wants to play a sound on the sound board
         if (currentLine.startsWith("GET /play/") && httpClientAction == NONE) {
@@ -319,34 +320,43 @@ void httpServerLoop() {
             getDataToHandle = currentLine.substring(lastSlashIdx + 1);
             httpClientAction = PLAY;
           }
-        
+
         }
 
         // client wants to upload a file
         if (currentLine.startsWith("POST /upload") && httpClientAction == NONE) { // upload initialized
-          httpClientAction = UPLOAD_INIT;          
+          httpClientAction = UPLOAD_INIT;
         }
 
         // client wants to upload a file and we found a boundary
         if (currentLine.startsWith("content-type: multipart/form-data; boundary=") && httpClientAction == UPLOAD_INIT) {
-          uploadBoundary = currentLine.substring(44);
+          uploadBoundary = "--" + currentLine.substring(44);
           dbg.print("Http Upload", "Found boundary: %s", uploadBoundary.c_str());
           httpClientAction = UPLOAD_BOUNDARY_INIT;
 
-        } 
+        }
 
         // the upload boundary actualy exists in the request
-        if(currentLine.startsWith(uploadBoundary) && httpClientAction == UPLOAD_BOUNDARY_INIT) {
+        if (currentLine.startsWith(uploadBoundary) && httpClientAction == UPLOAD_BOUNDARY_INIT) {
           dbg.print("Http Upload", "Found boundary in request: %s", uploadBoundary.c_str());
           httpClientAction = UPLOAD_BOUNDARY_FOUND;
         }
+
+        // the upload file  name has to be parsed
+        if (currentLine.startsWith("Content-Disposition: form-data; name=\"file\"; filename=") && httpClientAction == UPLOAD_BOUNDARY_FOUND) {
+
+          httpClientAction = UPLOAD_FILE_NAME_FOUND;
+        }
+
+
+
 
 
         // client wants some info about this board
         if (currentLine.startsWith("GET /info") && httpClientAction == NONE) {
           httpClientAction = INFO;
-        } 
-        
+        }
+
         // not a valid request with get or post
         if ((currentLine.startsWith("GET") || currentLine.startsWith("POST")) && httpClientAction == NONE) {
           // none of the action matches
