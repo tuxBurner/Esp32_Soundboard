@@ -3,7 +3,7 @@
 #include "DebugPrint.h"
 
 DebugPrint::DebugPrint() {
-  
+
 }
 
 //**************************************************************************************************
@@ -12,16 +12,19 @@ DebugPrint::DebugPrint() {
 // Send a line of info to serial output.  Works like vsprintf(), but checks the DEBUG flag.        *
 // Print only if DEBUG flag is true.  Always returns the the formatted string.                     *
 //**************************************************************************************************
-char* DebugPrint::print(const char* format, ...) {
+char* DebugPrint::print(const String domain, const char* format, ...) {
+
   va_list varArgs;                                    // For variable number of params
 
-  va_start(varArgs, format);                      // Prepare parameters
-  vsnprintf(sbuf, sizeof(sbuf), format, varArgs); // Format the message  
+//  const char test = domain + format;
+
+  va_start(varArgs, format);                    // Prepare parameters
+  vsnprintf(sbuf, sizeof(sbuf), format, varArgs); // Format the message
+  va_end(varArgs);                                 // End of using parameters
   if (_DEBUG) {                                     // DEBUG on?
-    Serial.print("D: ");                           // Yes, print prefix
+    Serial.print(domain);                           // Yes, print prefix
+    Serial.print(": ");
     Serial.println(sbuf);                          // and the info
   }
-  va_end(varArgs);                                 // End of using parameters
-
   return sbuf;
 }

@@ -4,10 +4,6 @@
 //* ./esptool.py --chip esp32 --port /dev/ttyUSB0 --baud 115200 --before default_reset --after hard_reset erase_flash *
 //*************************************************************************************************
 
-// Libraries used:
-
-// * https://github.com/me-no-dev/ESPAsyncWebServer
-// * https://github.com/me-no-dev/AsyncTCP
 
 // Wiring. Note that this is just an example.  Pins(except 18,19 and 23 of the SPI interface)
 // can be configured in the config page of the web interface.
@@ -71,15 +67,26 @@ int wifiConnectionMaxCount = 30;
 #define RINGBFSIZ 256
 
 // global vars
-//AsyncWebServer   httpServer(80);                        // Instance of embedded webserver on port 80
 File             mp3file;                               // File containing mp3 on SPIFFS
 
 // Data mode the soundboard can currently have
-enum datamode_t {DATA = 4,        // State for datastream
-                 STOPREQD = 128,  // Request for stopping current song
-                 STOPPED = 256    // State for stopped
+enum datamode_t {DATA = 1,        // State for datastream
+                 STOPREQD = 2,  // Request for stopping current song
+                 STOPPED = 4    // State for stopped
                 };
 
+// the action a http client wants to perform
+enum httpClientAction_t {
+  NONE = 1,
+  FAILURE = 2,
+  PLAY = 4,
+  INFO = 8,
+  UPLOAD = 16
+};
+// current action of the http client
+httpClientAction_t httpClientAction = NONE;
+const String httpHeaderOk = "HTTP/1.1 200 Ok";
+const String httpHeaderFailure = "HTTP/1.1 404 Not Found";
 
 datamode_t       datamode;                                // State of datastream
 uint16_t         rcount = 0;                              // Number of bytes in ringbuffer
@@ -155,10 +162,10 @@ void setup() {
 
   // start spiffs
   if (!SPIFFS.begin(true)) {
-    dbg.print("SPIFFS Mount Failed");
+    dbg.print("Main", "SPIFFS Mount Failed");
   }
 
-  dbg.print("Setting status led on pin: %d", statusLedPin);
+  dbg.print("Led", "Setting status led on pin: %d", statusLedPin);
   pinMode(statusLedPin, OUTPUT);
 
   initSoundButtons();
@@ -211,13 +218,13 @@ void initHttpServer() {
 //**************************************************************************************************
 void initSoundButtons() {
   // init sound button pins
-  dbg.print("Initializing: Buttons");
+  dbg.print("Button", "Initializing: Buttons");
   int8_t buttonPin;
   for (int i = 0 ; (buttonPin = soundPins[i].gpio) > 0 ; i++ ) {
-    dbg.print("Initializing Button at pin: %d", buttonPin);
+    dbg.print("Button", "Initializing Button at pin: %d", buttonPin);
     pinMode(buttonPin, INPUT_PULLUP);
     soundPins[i].curr = digitalRead(buttonPin);
-    dbg.print("Button at pin: %d is in state %d", buttonPin, soundPins[i].curr);
+    dbg.print("Button", "Button at pin: %d is in state %d", buttonPin, soundPins[i].curr);
   }
 }
 
@@ -229,46 +236,43 @@ void initSoundButtons() {
 void startWifi() {
 
   if (!turnWifiOn && wifiTurnedOn) {
-    dbg.print("Turning off wifi");
+    dbg.print("Wifi", "Turning off wifi");
     wifiTurnedOn = false;
     WiFi.enableAP(false);
     WiFi.enableSTA(false);
-    //httpServer.end();
     return;
   }
 
   if (!wifiTurnedOn && turnWifiOn) {
 
-    dbg.print("Turning on wifi");
+    dbg.print("Wifi", "Turning on wifi");
 
 
 
     if (WIFI_AP_MODE) {
-      //WiFi.disconnect();                                   // After restart the router could DISABLED lead to reboots with SPIFFS
-      //WiFi.softAPdisconnect(true);                         // still keep the old connection
-      dbg.print("Trying to setup AP with name: %s and password: %s.", WIFI_AP_SSID, WIFI_AP_PASS);
+      dbg.print("Wifi", "Trying to setup AP with name: %s and password: %s.", WIFI_AP_SSID, WIFI_AP_PASS);
       WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASS);                        // This ESP will be an AP
-      dbg.print("IP = 192.168.4.1");             // Address for AP
+      dbg.print("Wifi", "AP IP = 192.168.4.1");             // Address for AP
       delay(1000);
       wifiTurnedOn = true;
     } else {
-      dbg.print("Trying to setup wifi with ssid: %s and password: %s.", WIFI_SSID, WIFI_PASS);
+      dbg.print("Wifi: Trying to setup wifi with ssid: %s and password: %s.", WIFI_SSID, WIFI_PASS);
       WiFi.begin(WIFI_SSID, WIFI_PASS);
       while (WiFi.status() != WL_CONNECTED) {
         delay(500);
         digitalWrite(statusLedPin, true);
         wifiConnectionCount++;
-        dbg.print("Waiting for wifi connection .");
+        dbg.print("Wifi", "Waiting for wifi connection .");
         digitalWrite(statusLedPin, false);
         if (wifiConnectionMaxCount == wifiConnectionCount) {
-          dbg.print("Could not connect to wifi turning ap mode on");
+          dbg.print("Wifi", "Could not connect to wifi turning ap mode on");
           WIFI_AP_MODE = true;
           break;
         }
       }
 
       wifiTurnedOn = true;
-      Serial.println(WiFi.localIP());
+      dbg.print("Wifi: Ip address of esp is %s", WiFi.localIP().toString().c_str());
     }
 
     // start http server
@@ -292,6 +296,10 @@ void httpServerLoop() {
 
   String currentLine = "";                // make a String to hold incoming data from the client
 
+  String httpHeaderToSend = httpHeaderOk;
+  String contentToSend = "";
+  httpClientAction = NONE;
+
   while (client.connected()) {            // loop while the client's connected
     if (client.available()) {             // if there's bytes to read from the client,
       char c = client.read();             // read a byte, then
@@ -303,13 +311,13 @@ void httpServerLoop() {
         if (currentLine.length() == 0) {
           // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
           // and a content-type so the client knows what's coming, then a blank line:
-          client.println("HTTP/1.1 200 OK");
+          client.println(httpHeaderToSend);
           client.println("Content-type:text/html");
           client.println();
 
           // the content of the HTTP response follows the header:
-          client.print("Click <a href=\"/H\">here</a> to turn the LED on pin 5 on.<br>");
-          client.print("Click <a href=\"/L\">here</a> to turn the LED on pin 5 off.<br>");
+          //client.print("Click <a href=\"/H\">here</a> to turn the LED on pin 5 on.<br>");
+          client.print(contentToSend);
 
           // The HTTP response ends with another blank line:
           client.println();
@@ -317,13 +325,43 @@ void httpServerLoop() {
           break;
         } else {    // if you got a newline, then clear currentLine:
           dbg.print("Http: Client send line: '%s'", currentLine.c_str());
+
+          // Check to see if the client request was "GET /H" or "GET /L":
+          if (currentLine.startsWith("GET /play/") && httpClientAction == NONE) {
+            dbg.print("Http", "Client wants to play a sound from the board");
+
+            // get rid of the HTTP
+            int httpIdx = currentLine.indexOf(" HTTP");
+            currentLine = currentLine.substring(4, httpIdx);
+            dbg.print("Debug", "After http removal: %s", currentLine.c_str());
+
+            // parse the string to get the number of the file the user wants to play
+            int lastSlashIdx = currentLine.lastIndexOf('/');
+            if (lastSlashIdx != -1) {
+              String fileToPlay = currentLine.substring(lastSlashIdx + 1);
+              dbg.print("Debug", "Play me: %s", fileToPlay.c_str());
+              contentToSend = "Playing sound: " + fileToPlay;
+              initStartSound(fileToPlay);
+              httpClientAction = PLAY;
+            }
+          } else if (currentLine.startsWith("GET /info") && httpClientAction == NONE) {
+            contentToSend = "Info here please";
+          } else if (currentLine.startsWith("GET") && httpClientAction == NONE) {
+            // none of the action matches
+            contentToSend = "Not Found";
+            httpClientAction = FAILURE;
+            httpHeaderToSend = httpHeaderFailure;
+          }
+
           currentLine = "";
         }
       } else if (c != '\r') {  // if you got anything else but a carriage return character,
         currentLine += c;      // add it to the end of the currentLine
       }
 
-      // Check to see if the client request was "GET /H" or "GET /L":
+
+
+
       /*if (currentLine.endsWith("GET /H")) {
         digitalWrite(5, HIGH);               // GET /H turns the LED on
         }
@@ -332,9 +370,10 @@ void httpServerLoop() {
         }*/
     }
   }
+
   // close the connection:
   client.stop();
-  Serial.println("Client Disconnected.");
+  dbg.print("Http", "Client Disconnected.");
 }
 
 
@@ -522,14 +561,14 @@ void buttonLoop() {
       // HIGH to LOW change?
       if (!level) {
 
-        dbg.print("HMMMMMMMMMMMMMMMMMMMMMMMM %d", i);
+        dbg.print("Debug", "HMMMMMMMMMMMMMMMMMMMMMMMM %d", i);
 
         if (soundPins[i].sound != "wifi") {
-          dbg.print("GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound.c_str());
+          dbg.print("Button", "GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound.c_str());
           initStartSound(soundPins[i].sound);
         } else {
           turnWifiOn = !turnWifiOn;
-          dbg.print("GPIO_%02d is now LOW switching wifi to: %d", buttonPin, turnWifiOn);
+          dbg.print("Button", "GPIO_%02d is now LOW switching wifi to: %d", buttonPin, turnWifiOn);
         }
       }
       return;
@@ -603,7 +642,7 @@ void mp3loop() {
 
   // STOP requested?
   if (datamode == STOPREQD) {
-    dbg.print("STOP requested");
+    dbg.print("Sound", "STOP requested");
 
     mp3file.close();
 
@@ -749,10 +788,10 @@ void handlebyte(uint8_t b, bool force) {
       if (firstchunk)
       {
         firstchunk = false;
-        dbg.print("First chunk:");                  // Header for printout of first chunk
+        dbg.print("Sound" , "First chunk:");                 // Header for printout of first chunk
         for (i = 0; i < 32; i += 8)              // Print 4 lines
         {
-          dbg.print("%02X %02X %02X %02X %02X %02X %02X %02X",
+          dbg.print("Sound", "%02X %02X %02X %02X %02X %02X %02X %02X",
                     buf[i],   buf[i + 1], buf[i + 2], buf[i + 3],
                     buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]);
         }
