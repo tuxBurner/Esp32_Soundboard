@@ -279,8 +279,7 @@ httpClientAction_t httpClientAction = NONE;
 const String httpHeaderOk = "HTTP/1.1 200 Ok";
 const String httpHeaderFailure = "HTTP/1.1 404 Not Found";
 
-//#define UPL_MAX_SIZE 65535
-#define UPL_MAX_SIZE 655
+#define UPL_MAX_SIZE 65535
 char uplBuf[UPL_MAX_SIZE];
 int uplPos = 0;
 
@@ -422,6 +421,10 @@ void httpServerLoop() {
         httpGetInfo(client);
       }
 
+      if (httpClientAction == UPLOAD_DATA_END) {
+        httpUPloadFinished(client, getDataToHandle);
+      }
+
       if (httpClientAction == FAILURE) {
         httpNotFound(client, getDataToHandle);
       }
@@ -447,6 +450,17 @@ void httpPlaySound(WiFiClient client, String fileToPlay) {
   client.println("Content-type:text/html");
   client.println();
   client.println("Playing sound: " + fileToPlay);
+  client.println();
+}
+
+/**
+   When the upload was a success
+*/
+void httpUPloadFinished(WiFiClient client, String uploadedFile) {
+  client.println(httpHeaderOk);
+  client.println("Content-type:text/html");
+  client.println();
+  client.println("Uploaded file: " + uploadedFile);
   client.println();
 }
 
