@@ -271,7 +271,8 @@ enum httpClientAction_t {
   UPLOAD_BOUNDARY_FOUND = 64,
   UPLOAD_FILE_NAME_FOUND = 128,
   UPLOAD_DATA_START = 256,
-  UPLOAD_DATA_END = 512
+  UPLOAD_DATA_END = 512,
+  TEST = 1024
 };
 
 // current action of the http client
@@ -305,12 +306,22 @@ void httpServerLoop() {
   // some data we can handle after parsinf the request for example what file to play
   String getDataToHandle = "";
 
-  uplPos = 0;
-
 
   while (client.connected()) {            // loop while the client's connected
     if (client.available()) {             // if there's bytes to read from the client,
       char c = client.read();             // read a byte, then
+
+      // read the upload data to the buffer
+      if (httpClientAction == UPLOAD_DATA_START) {
+        if (uplPos < UPL_MAX_SIZE) {
+          uplBuf[uplPos] = c;
+          uplPos++;
+        } else {
+          dbg.print("Http Upload", "File is bigger than the allowed: %d", UPL_MAX_SIZE);
+          httpClientAction = FAILURE;
+          getDataToHandle = "File to big.";
+        }
+      }
 
       if (c == '\n') {                    // if the byte is a newline character
 
@@ -334,6 +345,7 @@ void httpServerLoop() {
         // client wants to upload a file
         if (currentLine.startsWith("POST /upload") && httpClientAction == NONE) { // upload initialized
           httpClientAction = UPLOAD_INIT;
+          uplPos = 0;
         }
 
         // client wants to upload a file and we found a boundary
@@ -362,29 +374,13 @@ void httpServerLoop() {
           dbg.print("Http Upload", "Starting reading the data");
           httpClientAction = UPLOAD_DATA_START;
         }
-
-        // read the data to the buffer
-        if (!currentLine.startsWith(uploadBoundary) && httpClientAction == UPLOAD_DATA_START) {
-
-          // file is to big
-          if (uplPos >= UPL_MAX_SIZE) {
-            dbg.print("Http Upload", "File is bigger than the allowed: %d", UPL_MAX_SIZE);
-            httpClientAction = FAILURE;
-            getDataToHandle = "File to big.";
-          } else {
-            for (int i = 0; i < currentLine.length(); i++) {
-              if (uplPos < UPL_MAX_SIZE) {
-                uplBuf[uplPos] = currentLine.charAt(i);
-                uplPos++;
-              }
-            }
-            dbg.print("Http Upload", "Reading data to buffer %d", uplPos);
-          }
-        }
+        
 
         // no more data to read
         if (currentLine.startsWith(uploadBoundary) && httpClientAction == UPLOAD_DATA_START) {
           dbg.print("Http Upload", "Found boundary end in request: %s", uploadBoundary.c_str());
+          // remove the boundary from the content by resetting the bufPos
+          uplPos -= currentLine.length() + 4;
           httpClientAction = UPLOAD_DATA_END;
         }
 
@@ -393,6 +389,11 @@ void httpServerLoop() {
         // client wants some info about this board
         if (currentLine.startsWith("GET /info") && httpClientAction == NONE) {
           httpClientAction = INFO;
+        }
+
+        // client wants some info about this board
+        if (currentLine.startsWith("GET /test") && httpClientAction == NONE) {
+          httpClientAction = TEST;
         }
 
         // not a valid request with get or post
@@ -423,6 +424,16 @@ void httpServerLoop() {
 
       if (httpClientAction == UPLOAD_DATA_END) {
         httpUPloadFinished(client, getDataToHandle);
+      }
+
+      if (httpClientAction == TEST) {
+        client.println(httpHeaderOk);
+        client.println("Content-type:audio/mp3");
+        client.println();
+        for (int i = 0; i < uplPos; i++) {
+          client.print(uplBuf[i]);
+        }
+        client.println();
       }
 
       if (httpClientAction == FAILURE) {
@@ -639,11 +650,11 @@ String getContentType(String filename) {
 */
 bool openLocalFile(fs::FS &fs, const char * path) {
 
-  dbg.print("Opening file %s", path);
+  dbg.print("MP3", "Opening file %s", path);
 
   mp3file = fs.open(path, "r");                           // Open the file
   if (!mp3file) {
-    dbg.print("Error opening file %s", path);
+    dbg.print("MP3", "Error opening file %s", path);
     return false;
   }
 
