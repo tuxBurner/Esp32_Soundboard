@@ -296,19 +296,21 @@ void httpServerLoop() {
 
   String currentLine = "";                // make a String to hold incoming data from the client
 
-  String httpHeaderToSend = httpHeaderOk;
-  String contentToSend = "";
   httpClientAction = NONE;
+
+  int MAX_IMAGE_SIZE = 65535;
+  char imagebuf[MAX_IMAGE_SIZE];
+  String getDataToHandle = "";
+
 
   while (client.connected()) {            // loop while the client's connected
     if (client.available()) {             // if there's bytes to read from the client,
       char c = client.read();             // read a byte, then
-      //Serial.write(c);                    // print it out the serial monitor
       if (c == '\n') {                    // if the byte is a newline character
 
         // if the current line is blank, you got two newline characters in a row.
         // that's the end of the client HTTP request, so send a response:
-        if (currentLine.length() == 0) {
+        /*if (currentLine.length() == 0) {
           // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
           // and a content-type so the client knows what's coming, then a blank line:
           client.println(httpHeaderToSend);
@@ -323,54 +325,52 @@ void httpServerLoop() {
           client.println();
           // break out of the while loop:
           break;
-        } else {    // if you got a newline, then clear currentLine:
-          dbg.print("Http: Client send line: '%s'", currentLine.c_str());
+          } else {    // if you got a newline, then clear currentLine:*/
+        dbg.print("Http: Client send line: '%s'", currentLine.c_str());
 
-          // Check to see if the client request was "GET /H" or "GET /L":
-          if (currentLine.startsWith("GET /play/") && httpClientAction == NONE) {
-            dbg.print("Http", "Client wants to play a sound from the board");
+        // Check to see if the client request was "GET /H" or "GET /L":
+        if (currentLine.startsWith("GET /play/") && httpClientAction == NONE) {
 
-            // get rid of the HTTP
-            int httpIdx = currentLine.indexOf(" HTTP");
-            currentLine = currentLine.substring(4, httpIdx);
-            dbg.print("Debug", "After http removal: %s", currentLine.c_str());
+          dbg.print("Http", "Client wants to play a sound from the board");
 
-            // parse the string to get the number of the file the user wants to play
-            int lastSlashIdx = currentLine.lastIndexOf('/');
-            if (lastSlashIdx != -1) {
-              String fileToPlay = currentLine.substring(lastSlashIdx + 1);
-              dbg.print("Debug", "Play me: %s", fileToPlay.c_str());
-              contentToSend = "Playing sound: " + fileToPlay;
-              initStartSound(fileToPlay);
-              httpClientAction = PLAY;
-            }
-          } else if (currentLine.startsWith("POST /upload") && httpClientAction == NONE) {
-            contentToSend = "File upload";
-            httpClientAction = UPLOAD;
-          } else if (currentLine.startsWith("GET /info") && httpClientAction == NONE) {
-            contentToSend = "Info here please";
-          } else if ((currentLine.startsWith("GET") || currentLine.startsWith("POST")) && httpClientAction == NONE) {
-            // none of the action matches
-            contentToSend = "Not Found";
-            httpClientAction = FAILURE;
-            httpHeaderToSend = httpHeaderFailure;
+          // get rid of the HTTP
+          int httpIdx = currentLine.indexOf(" HTTP");
+          currentLine = currentLine.substring(4, httpIdx);
+          // parse the string to get the number of the file the user wants to play
+          int lastSlashIdx = currentLine.lastIndexOf('/');
+          if (lastSlashIdx != -1) {
+            getDataToHandle = currentLine.substring(lastSlashIdx + 1);
+            httpClientAction = PLAY;
           }
-
-          currentLine = "";
+        } else if (currentLine.startsWith("POST /upload") && httpClientAction == NONE) {
+          httpClientAction = UPLOAD;
+        } else if (currentLine.startsWith("GET /info") && httpClientAction == NONE) {
+          httpClientAction = INFO;
+        } else if ((currentLine.startsWith("GET") || currentLine.startsWith("POST")) && httpClientAction == NONE) {
+          // none of the action matches
+          httpClientAction = FAILURE;
         }
+
+        currentLine = "";
+        //}
       } else if (c != '\r') {  // if you got anything else but a carriage return character,
         currentLine += c;      // add it to the end of the currentLine
       }
 
+    } else { // no more data from the client
+      if (httpClientAction == PLAY) {
+        httpPlaySound(client, getDataToHandle);
+      }
 
+      if (httpClientAction == INFO) {
+        httpGetInfo(client);
+      }
 
+      if (httpClientAction == FAILURE) {
+        httpNotFound(client);
+      }
 
-      /*if (currentLine.endsWith("GET /H")) {
-        digitalWrite(5, HIGH);               // GET /H turns the LED on
-        }
-        if (currentLine.endsWith("GET /L")) {
-        digitalWrite(5, LOW);                // GET /L turns the LED off
-        }*/
+      break; // exit the main client loop
     }
   }
 
@@ -379,6 +379,48 @@ void httpServerLoop() {
   dbg.print("Http", "Client Disconnected.");
 }
 
+/**
+   Handles the request to play a sound
+*/
+void httpPlaySound(WiFiClient client, String fileToPlay) {
+
+  // let the sound board play the requested file
+  initStartSound(fileToPlay);
+
+  client.println(httpHeaderOk);
+  client.println("Content-type:text/html");
+  client.println();
+  client.println("Playing sound: " + fileToPlay);
+  client.println();
+}
+
+
+/**
+   Displays the info to the client
+*/
+void httpGetInfo(WiFiClient client) {
+
+  // let the sound board play the requested file
+  initStartSound(fileToPlay);
+
+  client.println(httpHeaderOk);
+  client.println("Content-type:text/html");
+  client.println();
+  client.println("TODO: INFO HERE");
+  client.println();
+}
+
+
+/**
+   Handles a not found request
+*/
+void httpNotFound(WiFiClient client) {
+  client.println(httpHeaderFailure);
+  client.println("Content-type:text/html");
+  client.println();
+  client.println("Not Found");
+  client.println();
+}
 
 //******************************************************************************************
 //                             H A N D L E C M D                                           *
