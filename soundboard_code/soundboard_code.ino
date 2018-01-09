@@ -344,7 +344,8 @@ void httpServerLoop() {
 
         // the upload file  name has to be parsed
         if (currentLine.startsWith("Content-Disposition: form-data; name=\"file\"; filename=") && httpClientAction == UPLOAD_BOUNDARY_FOUND) {
-
+          getDataToHandle = currentLine.substring(55, currentLine.length() - 1);
+          dbg.print("Http Upload", "Filename is: %s", getDataToHandle.c_str());
           httpClientAction = UPLOAD_FILE_NAME_FOUND;
         }
 
