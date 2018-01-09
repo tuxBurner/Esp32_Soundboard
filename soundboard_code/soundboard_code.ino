@@ -344,9 +344,12 @@ void httpServerLoop() {
               initStartSound(fileToPlay);
               httpClientAction = PLAY;
             }
+          } else if (currentLine.startsWith("POST /upload") && httpClientAction == NONE) {
+            contentToSend = "File upload";
+            httpClientAction = UPLOAD;
           } else if (currentLine.startsWith("GET /info") && httpClientAction == NONE) {
             contentToSend = "Info here please";
-          } else if (currentLine.startsWith("GET") && httpClientAction == NONE) {
+          } else if ((currentLine.startsWith("GET") || currentLine.startsWith("POST")) && httpClientAction == NONE) {
             // none of the action matches
             contentToSend = "Not Found";
             httpClientAction = FAILURE;
