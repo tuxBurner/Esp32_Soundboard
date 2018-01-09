@@ -272,7 +272,7 @@ enum httpClientAction_t {
   UPLOAD_FILE_NAME_FOUND = 128,
   UPLOAD_DATA_START = 256,
   UPLOAD_DATA_END = 512,
-  TEST = 1024
+  DOWNLOAD = 1024
 };
 
 // current action of the http client
@@ -331,16 +331,24 @@ void httpServerLoop() {
           dbg.print("Http", "Client wants to play a sound from the board");
 
           // get rid of the HTTP
-          int httpIdx = currentLine.indexOf(" HTTP");
-          currentLine = currentLine.substring(4, httpIdx);
-          // parse the string to get the number of the file the user wants to play
-          int lastSlashIdx = currentLine.lastIndexOf('/');
-          if (lastSlashIdx != -1) {
-            getDataToHandle = currentLine.substring(lastSlashIdx + 1);
-            httpClientAction = PLAY;
-          }
-
+          getDataToHandle = currentLine;
+          getDataToHandle.replace(" HTTP/1.1", "");
+          getDataToHandle.replace("GET /play/", "");
+          httpClientAction = PLAY;
         }
+
+        if (currentLine.startsWith("GET /mp3/") && httpClientAction == NONE) {
+          dbg.print("Http", "Client wants to download a sound from the board");
+
+          // get rid of the HTTP
+          getDataToHandle = currentLine;
+          getDataToHandle.replace(" HTTP/1.1", "");
+          getDataToHandle.replace("GET /mp3/", "");
+
+          httpClientAction = DOWNLOAD;
+        }
+
+
 
         // client wants to upload a file
         if (currentLine.startsWith("POST /upload") && httpClientAction == NONE) { // upload initialized
@@ -374,7 +382,7 @@ void httpServerLoop() {
           dbg.print("Http Upload", "Starting reading the data");
           httpClientAction = UPLOAD_DATA_START;
         }
-        
+
 
         // no more data to read
         if (currentLine.startsWith(uploadBoundary) && httpClientAction == UPLOAD_DATA_START) {
@@ -389,11 +397,6 @@ void httpServerLoop() {
         // client wants some info about this board
         if (currentLine.startsWith("GET /info") && httpClientAction == NONE) {
           httpClientAction = INFO;
-        }
-
-        // client wants some info about this board
-        if (currentLine.startsWith("GET /test") && httpClientAction == NONE) {
-          httpClientAction = TEST;
         }
 
         // not a valid request with get or post
@@ -422,18 +425,12 @@ void httpServerLoop() {
         httpGetInfo(client);
       }
 
-      if (httpClientAction == UPLOAD_DATA_END) {
-        httpUPloadFinished(client, getDataToHandle);
+      if (httpClientAction == DOWNLOAD) {
+        httpDownloadMp3(client, getDataToHandle);
       }
 
-      if (httpClientAction == TEST) {
-        client.println(httpHeaderOk);
-        client.println("Content-type:audio/mp3");
-        client.println();
-        for (int i = 0; i < uplPos; i++) {
-          client.print(uplBuf[i]);
-        }
-        client.println();
+      if (httpClientAction == UPLOAD_DATA_END) {
+        httpUPloadFinished(client, getDataToHandle);
       }
 
       if (httpClientAction == FAILURE) {
@@ -447,6 +444,29 @@ void httpServerLoop() {
   // close the connection:
   client.stop();
   dbg.print("Http", "Client Disconnected.");
+}
+
+/**
+   Handles the download of the given mp3
+*/
+void httpDownloadMp3(WiFiClient client, String fileToDownload) {
+
+  String path = "/" + fileToDownload + ".mp3";
+  dbg.print("Http download", "Streaming file: %s to client", path.c_str());
+
+  File file = SPIFFS.open(path);
+
+  client.println(httpHeaderOk);
+  client.println("Content-type: audio/mp3");
+  client.println();
+  //client.println("Playing sound: " + fileToPlay);
+  while (file.available()) {
+    client.print(file.read());
+  }
+  
+  client.println();
+
+  file.close();
 }
 
 /**
@@ -468,6 +488,26 @@ void httpPlaySound(WiFiClient client, String fileToPlay) {
    When the upload was a success
 */
 void httpUPloadFinished(WiFiClient client, String uploadedFile) {
+
+  // write the file
+  String path = "/" + uploadedFile;
+
+  // Remove old file
+  dbg.print("File", "Removing old file: %s", path.c_str());
+  SPIFFS.remove(path);
+
+  dbg.print("File", "Open file to write: %s (%d)", path.c_str(), uplPos);
+  static File file = SPIFFS.open(path, "w");
+
+  for (int i = 0; i < uplPos; i++) {
+    file.print(uplBuf[i]);
+  }
+
+
+  file.close();
+  dbg.print("File", "Done writing: %s", path.c_str());
+
+
   client.println(httpHeaderOk);
   client.println("Content-type:text/html");
   client.println();
@@ -502,148 +542,6 @@ void httpNotFound(WiFiClient client, String reason) {
   client.println(reason);
   client.println();
 }
-
-//******************************************************************************************
-//                             H A N D L E C M D                                           *
-//******************************************************************************************
-// Handling of the various commands from remote (case sensitive). All commands have the    *
-// form "/?parameter[=value]".  Example: "/?volume=50".                                    *
-// The startpage will be returned if no arguments are given.                               *
-// Multiple parameters are ignored.  An extra parameter may be "version=<random number>"   *
-// in order to prevent browsers like Edge and IE to use their cache.  This "version" is    *
-// ignored.                                                                                *
-// Example: "/?upvolume=5&version=0.9775479450590543"                                      *
-// The save and the list commands are handled specially.                                   *
-//******************************************************************************************
-/*void handleCmd ( AsyncWebServerRequest* request ) {
-
-  // Get number of arguments
-  int params = request->params();
-
-  // no params ? then do nothing here
-  if (params == 0) {
-    request->send(202, "text/plain", "No valid command.");
-    return;
-  }
-
-  // read the argument and its value from the first parameter
-  AsyncWebParameter* p = request->getParam(0);
-  String argument = p->name();
-  String value = p->value();
-
-  // Station in the form address:port
-  if (argument == "play") {
-    dbg.print("Play file: %s requested", fileToPlay.c_str());
-    initStartSound(value);
-    request->send ( 200, "text/plain", "Play file:" + fileToPlay);
-    return;
-  }
-
-  // set the volume
-  if (argument == "volume") {
-    uint8_t newVol = value.toInt();
-    if (newVol >= 0 && newVol <= 100) {
-      volume = newVol;
-      request->send ( 200, "text/plain", "Volume is now:" + value);
-      return;
-    }
-  }
-
-  request->send(404, "text/plain", "No valid command.");
-  }*/
-
-
-
-//******************************************************************************************
-//                         H A N D L E F I L E U P L O A D                                 *
-//******************************************************************************************
-// Handling of upload request.  Write file to SPIFFS.                                      *
-//******************************************************************************************
-/*void handleFileUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-  String          path;                              // Filename including "/"
-  static File     f;                                 // File handle output file
-  char*           reply;                             // Reply for webserver
-  static uint32_t t;                                 // Timer for progress messages
-  uint32_t        t1;                                // For compare
-  static uint32_t totallength;                       // Total file length
-  static size_t   lastindex;                         // To test same index
-
-  if (index == 0) {
-    path = String("/") + filename;                // Form SPIFFS filename
-    SPIFFS.remove(path);                          // Remove old file
-    f = SPIFFS.open(path, "w");                   // Create new file
-    t = millis();                                    // Start time
-    totallength = 0;                                 // Total file lengt still zero
-    lastindex = 0;                                   // Prepare test
-  }
-  t1 = millis();                                     // Current timestamp
-  // Yes, print progress
-  dbg.print("File upload %s, t = %d msec, len %d, index %d", filename.c_str(), t1 - t, len, index);
-  if (len) {                                       // Something to write?
-    if ((index != lastindex) || (index == 0)) { // New chunk?
-      f.write(data, len);                         // Yes, transfer to SPIFFS
-      totallength += len;                            // Update stored length
-      lastindex = index;                             // Remenber this part
-    }
-  }
-  if (final) {                                    // Was this last chunk?
-    f.close();                                       // Yes, clode the file
-    reply = dbg.print("File upload %s, %d bytes finished", filename.c_str(), totallength);
-    request->send(200, "", reply);
-  }
-  }*/
-
-
-//******************************************************************************************
-//                                H A N D L E F S                                          *
-//******************************************************************************************
-// Handling of requesting files from the SPIFFS. Example: /favicon.ico                     *
-//******************************************************************************************
-/*void handleFS(AsyncWebServerRequest* request)
-  {
-  handleFSf(request, request->url());               // Rest of handling
-  }*/
-
-//******************************************************************************************
-//                                H A N D L E F S F                                        *
-//******************************************************************************************
-// Handling of requesting files from the SPIFFS/PROGMEM. Example: /favicon.ico             *
-//******************************************************************************************
-/*void handleFSf(AsyncWebServerRequest* request, const String& filename)
-  {
-  static String          ct;                           // Content type
-  AsyncWebServerResponse *response;                    // For extra headers
-
-  dbg.print("FileRequest received %s", filename.c_str());
-  ct = getContentType(filename);                    // Get content type
-  if ((ct == "") || (filename == "") || (filename == "/favicon.ico"))         // Empty is illegal
-  {
-    request->send(404, "text/plain", "File not found");
-  }
-  else
-  {
-
-    response = request->beginResponse(SPIFFS, filename, ct);
-    // Add extra headers
-    response->addHeader("Server", NAME);
-    response->addHeader("Cache-Control", "max-age=3600");
-    response->addHeader("Last-Modified", VERSION);
-    request->send(response);
-  }
-  dbg.print("Response sent");
-  }*/
-
-
-//******************************************************************************************
-//                             G E T C O N T E N T T Y P E                                 *
-//******************************************************************************************
-// Returns the contenttype of a file to send.                                              *
-//******************************************************************************************
-String getContentType(String filename) {
-  if (filename.endsWith(".mp3")) return "audio/mpeg";
-  return "text/plain";
-}
-
 
 /**
     Opens a local file from the given fs
