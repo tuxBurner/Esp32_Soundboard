@@ -269,16 +269,26 @@ enum httpClientAction_t {
   UPLOAD_INIT = 16,
   UPLOAD_BOUNDARY_INIT = 32,
   UPLOAD_BOUNDARY_FOUND = 64,
-  UPLOAD_FILE_NAME_FOUND = 128
+  UPLOAD_FILE_NAME_FOUND = 128,
+  UPLOAD_DATA_START = 256,
+  UPLOAD_DATA_END = 512
 };
 
 // current action of the http client
 httpClientAction_t httpClientAction = NONE;
 const String httpHeaderOk = "HTTP/1.1 200 Ok";
 const String httpHeaderFailure = "HTTP/1.1 404 Not Found";
+
+//#define UPL_MAX_SIZE 65535
+#define UPL_MAX_SIZE 655
+char uplBuf[UPL_MAX_SIZE];
+int uplPos = 0;
+
 void httpServerLoop() {
   // do we have a new client ?
   WiFiClient client = httpServer.available();
+
+  // no client ?
   if (!client) {
     return;
   }
@@ -287,14 +297,16 @@ void httpServerLoop() {
 
   String currentLine = "";                // make a String to hold incoming data from the client
 
+  // the current action/state of the http client parser
   httpClientAction = NONE;
-
-  int MAX_IMAGE_SIZE = 65535;
-  char imagebuf[MAX_IMAGE_SIZE];
-  String getDataToHandle = "";
 
   // stores the upload boundary
   String uploadBoundary = "";
+
+  // some data we can handle after parsinf the request for example what file to play
+  String getDataToHandle = "";
+
+  uplPos = 0;
 
 
   while (client.connected()) {            // loop while the client's connected
@@ -302,9 +314,6 @@ void httpServerLoop() {
       char c = client.read();             // read a byte, then
 
       if (c == '\n') {                    // if the byte is a newline character
-
-
-        dbg.print("Http", "Client send line: %s", currentLine.c_str());
 
         // client wants to play a sound on the sound board
         if (currentLine.startsWith("GET /play/") && httpClientAction == NONE) {
@@ -349,7 +358,36 @@ void httpServerLoop() {
           httpClientAction = UPLOAD_FILE_NAME_FOUND;
         }
 
+        // after parsing the name and finding the first empty line we can start reading the data
+        if (currentLine == "" && httpClientAction == UPLOAD_FILE_NAME_FOUND) {
+          dbg.print("Http Upload", "Starting reading the data");
+          httpClientAction = UPLOAD_DATA_START;
+        }
 
+        // read the data to the buffer
+        if (!currentLine.startsWith(uploadBoundary) && httpClientAction == UPLOAD_DATA_START) {
+
+          // file is to big
+          if (uplPos >= UPL_MAX_SIZE) {
+            dbg.print("Http Upload", "File is bigger than the allowed: %d", UPL_MAX_SIZE);
+            httpClientAction = FAILURE;
+            getDataToHandle = "File to big.";
+          } else {
+            for (int i = 0; i < currentLine.length(); i++) {
+              if (uplPos < UPL_MAX_SIZE) {
+                uplBuf[uplPos] = currentLine.charAt(i);
+                uplPos++;
+              }
+            }
+            dbg.print("Http Upload", "Reading data to buffer %d", uplPos);
+          }
+        }
+
+        // no more data to read
+        if (currentLine.startsWith(uploadBoundary) && httpClientAction == UPLOAD_DATA_START) {
+          dbg.print("Http Upload", "Found boundary end in request: %s", uploadBoundary.c_str());
+          httpClientAction = UPLOAD_DATA_END;
+        }
 
 
 
@@ -361,7 +399,13 @@ void httpServerLoop() {
         // not a valid request with get or post
         if ((currentLine.startsWith("GET") || currentLine.startsWith("POST")) && httpClientAction == NONE) {
           // none of the action matches
+          getDataToHandle = "Not Found";
           httpClientAction = FAILURE;
+        }
+
+        // debug request
+        if (httpClientAction != UPLOAD_DATA_START && httpClientAction != FAILURE) {
+          dbg.print("Http", "Client send line: %s", currentLine.c_str());
         }
 
         currentLine = ""; // empty the current line
@@ -379,7 +423,7 @@ void httpServerLoop() {
       }
 
       if (httpClientAction == FAILURE) {
-        httpNotFound(client);
+        httpNotFound(client, getDataToHandle);
       }
 
       break; // exit the main client loop
@@ -426,11 +470,11 @@ void httpGetInfo(WiFiClient client) {
 /**
    Handles a not found request
 */
-void httpNotFound(WiFiClient client) {
+void httpNotFound(WiFiClient client, String reason) {
   client.println(httpHeaderFailure);
   client.println("Content-type:text/html");
   client.println();
-  client.println("Not Found");
+  client.println(reason);
   client.println();
 }
 
