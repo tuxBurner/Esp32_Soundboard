@@ -29,6 +29,7 @@ void        handlebyte_ch(uint8_t b, bool force);
 // Release Notes
 // 26-11-2017 Initial Code started
 // 16-12-2017 Got the Stuff Working
+// 10-01-2018 New Http Server Implementation
 
 #include <SPI.h>
 #include <WiFi.h>
@@ -38,7 +39,7 @@ void        handlebyte_ch(uint8_t b, bool force);
 #include "Vs1053Esp32.h"
 
 // defines and includes
-#define VERSION "Sa, 16 Dec 2017"
+#define VERSION "Mi, 10 Jan 2018"
 
 // vs1053 pins
 #define VS1053_DCS    16
@@ -102,6 +103,7 @@ struct soundPin_struct
 /**
    The actual button mapping
 */
+const int buttonNr = 12;
 soundPin_struct soundPins[] = {
   {15, false, "wifi"}, // blue square
   {12, false, "1"}, // sheep
@@ -456,16 +458,19 @@ void httpDownloadMp3(WiFiClient client, String fileToDownload) {
 
   File file = SPIFFS.open(path);
 
+  if (file.size() == 0) {
+    httpNotFound(client, "File: " + path + " not found");
+    return;
+  }
+
   client.println(httpHeaderOk);
   client.println("Content-type: audio/mp3");
+  client.println("Content-Length:" + file.size());
   client.println();
-  //client.println("Playing sound: " + fileToPlay);
+
   while (file.available()) {
     client.write(file.read());
   }
-  /*while (file.available()) {
-    Serial.write(file.read());
-  }*/
 
   client.println();
 
@@ -481,7 +486,7 @@ void httpPlaySound(WiFiClient client, String fileToPlay) {
   initStartSound(fileToPlay);
 
   client.println(httpHeaderOk);
-  client.println("Content-type:text/html");
+  client.println("Content-type: text/html");
   client.println();
   client.println("Playing sound: " + fileToPlay);
   client.println();
@@ -503,7 +508,7 @@ void httpUPloadFinished(WiFiClient client, String uploadedFile) {
   static File file = SPIFFS.open(path, "w");
 
   for (int i = 0; i < uplPos; i++) {
-    file.print(uplBuf[i]);
+    file.write(uplBuf[i]);
   }
 
 
@@ -528,9 +533,30 @@ void httpGetInfo(WiFiClient client) {
   initStartSound(fileToPlay);
 
   client.println(httpHeaderOk);
-  client.println("Content-type:text/html");
+  client.println("Content-type:application/json");
   client.println();
-  client.println("TODO: INFO HERE");
+
+
+  client.println("{"); // main {}
+
+  client.println("files : {["); // files {}
+  File root = SPIFFS.open("/");
+  File file = root.openNextFile();
+  String sep = "";
+  while (file) {    
+    client.print(sep);
+    client.print("{\"name\" : \"");
+    client.print(file.name());
+    client.print("\"\"size\": ");
+    client.print(file.size());
+    client.println("}");
+
+    file = root.openNextFile();
+    sep = ",";
+  }
+  client.println("]}"); // eo file {}
+
+  client.println("}"); // eo main {}
   client.println();
 }
 
@@ -549,12 +575,12 @@ void httpNotFound(WiFiClient client, String reason) {
 /**
     Opens a local file from the given fs
 */
-bool openLocalFile(fs::FS &fs, const char * path) {
+bool openLocalFile(const char * path) {
 
   dbg.print("MP3", "Opening file %s", path);
 
-  mp3file = fs.open(path, "r");                           // Open the file
-  if (!mp3file) {
+  mp3file = SPIFFS.open(path, "r");                           // Open the file
+  if (mp3file.size() == 0) {
     dbg.print("MP3", "Error opening file %s", path);
     return false;
   }
@@ -577,7 +603,7 @@ void buttonLoop() {
 
 
   int8_t buttonPin;
-  for (int i = 0 ; i < 12 ; i++ ) {
+  for (int i = 0 ; i < buttonNr ; i++ ) {
 
     buttonPin = soundPins[i].gpio;
     // get the current state of the button
@@ -695,7 +721,7 @@ void mp3loop() {
   if (filereq) {
     filereq = false;
 
-    openLocalFile(SPIFFS, fileToPlay.c_str());
+    openLocalFile(fileToPlay.c_str());
 
     // set the mode to data
     datamode = DATA;
