@@ -266,15 +266,17 @@ void startWifi() {
 enum httpClientAction_t {
   NONE = 1,
   FAILURE = 2,
-  PLAY = 4,
-  INFO = 8,
-  UPLOAD_INIT = 16,
-  UPLOAD_BOUNDARY_INIT = 32,
-  UPLOAD_BOUNDARY_FOUND = 64,
-  UPLOAD_FILE_NAME_FOUND = 128,
-  UPLOAD_DATA_START = 256,
-  UPLOAD_DATA_END = 512,
-  DOWNLOAD = 1024
+  PLAY = 3,
+  INFO = 4,
+  UPLOAD_INIT = 5,
+  UPLOAD_BOUNDARY_INIT = 6,
+  UPLOAD_BOUNDARY_FOUND = 7,
+  UPLOAD_FILE_NAME_FOUND = 8,
+  UPLOAD_DATA_START = 9,
+  UPLOAD_DATA_END = 10,
+  DOWNLOAD = 11,
+  DELETE = 12,
+  RESTART = 13
 };
 
 // current action of the http client
@@ -339,15 +341,38 @@ void httpServerLoop() {
           httpClientAction = PLAY;
         }
 
-        if (currentLine.startsWith("GET /mp3/") && httpClientAction == NONE) {
+        // client wants to download mp3
+        if (currentLine.startsWith("GET /download/") && httpClientAction == NONE) {
           dbg.print("Http", "Client wants to download a sound from the board");
 
           // get rid of the HTTP
           getDataToHandle = currentLine;
           getDataToHandle.replace(" HTTP/1.1", "");
-          getDataToHandle.replace("GET /mp3/", "");
+          getDataToHandle.replace("GET /download/", "");
 
           httpClientAction = DOWNLOAD;
+        }
+
+        // client wants to delete a file
+        if (currentLine.startsWith("GET /delete/") && httpClientAction == NONE) {
+          dbg.print("Http", "Client wants to delete a file from the board");
+
+          // get rid of the HTTP
+          getDataToHandle = currentLine;
+          getDataToHandle.replace(" HTTP/1.1", "");
+          getDataToHandle.replace("GET /delete/", "");
+
+          httpClientAction = DELETE;
+        }
+
+        // client wants some info about this board
+        if (currentLine.startsWith("GET /info") && httpClientAction == NONE) {
+          httpClientAction = INFO;
+        }
+
+        // client wants to restart this board
+        if (currentLine.startsWith("GET /restart") && httpClientAction == NONE) {
+          httpClientAction = RESTART;
         }
 
 
@@ -394,13 +419,6 @@ void httpServerLoop() {
           httpClientAction = UPLOAD_DATA_END;
         }
 
-
-
-        // client wants some info about this board
-        if (currentLine.startsWith("GET /info") && httpClientAction == NONE) {
-          httpClientAction = INFO;
-        }
-
         // not a valid request with get or post
         if ((currentLine.startsWith("GET") || currentLine.startsWith("POST")) && httpClientAction == NONE) {
           // none of the action matches
@@ -435,8 +453,17 @@ void httpServerLoop() {
         httpUPloadFinished(client, getDataToHandle);
       }
 
+      if (httpClientAction == DELETE) {
+        httpDeleteFile(client, getDataToHandle);
+      }
+
       if (httpClientAction == FAILURE) {
         httpNotFound(client, getDataToHandle);
+      }
+
+      if (httpClientAction == RESTART) {
+        dbg.print("Main", "Client wants to restart the board");
+        ESP.restart();
       }
 
       break; // exit the main client loop
@@ -456,7 +483,7 @@ void httpDownloadMp3(WiFiClient client, String fileToDownload) {
   String path = "/" + fileToDownload + ".mp3";
   dbg.print("Http download", "Streaming file: %s to client", path.c_str());
 
-  File file = SPIFFS.open(path);
+  File file = SPIFFS.open(path, FILE_READ);
 
   if (file.size() == 0) {
     httpNotFound(client, "File: " + path + " not found");
@@ -475,6 +502,29 @@ void httpDownloadMp3(WiFiClient client, String fileToDownload) {
   client.println();
 
   file.close();
+}
+
+/**
+   Handles delete request
+*/
+void httpDeleteFile(WiFiClient client, String fileToDelete) {
+  String path = "/" + fileToDelete;
+  dbg.print("Http download", "Delete file: %s", path.c_str());
+
+
+  if (SPIFFS.exists(path) == false) {
+    httpNotFound(client, "File: " + path + " not found");
+    return;
+  }
+
+  SPIFFS.remove(path);
+
+  client.println(httpHeaderOk);
+  client.println("Content-type: text/html");
+  client.println();
+
+  client.println("File: " + path + " deleted.");
+  client.println();
 }
 
 /**
@@ -501,25 +551,37 @@ void httpUPloadFinished(WiFiClient client, String uploadedFile) {
   String path = "/" + uploadedFile;
 
   // Remove old file
-  dbg.print("File", "Removing old file: %s", path.c_str());
-  SPIFFS.remove(path);
+  if (SPIFFS.exists(path) == true) {
+    dbg.print("File", "Removing old file: %s", path.c_str());
+    SPIFFS.remove(path);
+  }
+
+
+
+  SPIFFS.end();
+  SPIFFS.begin(true);
+
 
   dbg.print("File", "Open file to write: %s (%d)", path.c_str(), uplPos);
-  static File file = SPIFFS.open(path, "w");
+  static File file = SPIFFS.open(path, FILE_WRITE);
 
   for (int i = 0; i < uplPos; i++) {
     file.write(uplBuf[i]);
   }
-
-
+  file.flush();
   file.close();
+
+
+
   dbg.print("File", "Done writing: %s", path.c_str());
 
 
   client.println(httpHeaderOk);
   client.println("Content-type:text/html");
   client.println();
-  client.println("Uploaded file: " + uploadedFile);
+  client.print("Uploaded file: " + uploadedFile);
+  client.print("size: ");
+  client.println(uplPos);
   client.println();
 }
 
@@ -539,8 +601,31 @@ void httpGetInfo(WiFiClient client) {
   client.print(VERSION);
   client.println("\",");
 
+  client.print("\"uploadmaxsize\" : ");
+  client.print(UPL_MAX_SIZE);
+  client.println(",");
+
+  client.print("\"freeMem\" : ");
+  client.print(ESP.getFreeHeap());
+  client.println(",");
+
+  client.print("\"flashSize\" : ");
+  client.print(ESP.getFlashChipSize());
+  client.println(",");
+
+  uint64_t chipid = ESP.getEfuseMac();
+  client.print("\"chipid\" : \"");
+  client.printf("%04X", (uint16_t)(chipid >> 32));
+  client.printf("%08X", (uint32_t)chipid);
+  client.println("\",");
+
+  client.print("\"macAddress\" : \"");
+  client.print(WiFi.macAddress());
+  client.println("\",");
+
+
   client.println("\"files\" : {["); // files {}
-  File root = SPIFFS.open("/");
+  File root = SPIFFS.open("/", FILE_READ);
   File file = root.openNextFile();
   String sep = "";
   while (file) {
@@ -550,10 +635,13 @@ void httpGetInfo(WiFiClient client) {
     client.print("\"\"size\": ");
     client.print(file.size());
     client.println("}");
+    file.close();
 
     file = root.openNextFile();
     sep = ",";
   }
+  root.close();
+
   client.println("]}"); // eo file {}
 
   client.println("}"); // eo main {}
@@ -579,7 +667,7 @@ bool openLocalFile(const char * path) {
 
   dbg.print("MP3", "Opening file %s", path);
 
-  mp3file = SPIFFS.open(path, "r");                           // Open the file
+  mp3file = SPIFFS.open(path, FILE_READ);                           // Open the file
   if (mp3file.size() == 0) {
     dbg.print("MP3", "Error opening file %s", path);
     return false;
