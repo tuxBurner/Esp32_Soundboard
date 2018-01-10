@@ -601,7 +601,7 @@ void httpGetInfo(WiFiClient client) {
   client.print(VERSION);
   client.println("\",");
 
-  client.print("\"uploadmaxsize\" : ");
+  client.print("\"uploadMaxSize\" : ");
   client.print(UPL_MAX_SIZE);
   client.println(",");
 
@@ -614,7 +614,7 @@ void httpGetInfo(WiFiClient client) {
   client.println(",");
 
   uint64_t chipid = ESP.getEfuseMac();
-  client.print("\"chipid\" : \"");
+  client.print("\"chipId\" : \"");
   client.printf("%04X", (uint16_t)(chipid >> 32));
   client.printf("%08X", (uint32_t)chipid);
   client.println("\",");
