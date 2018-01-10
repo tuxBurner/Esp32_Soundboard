@@ -528,10 +528,6 @@ void httpUPloadFinished(WiFiClient client, String uploadedFile) {
    Displays the info to the client
 */
 void httpGetInfo(WiFiClient client) {
-
-  // let the sound board play the requested file
-  initStartSound(fileToPlay);
-
   client.println(httpHeaderOk);
   client.println("Content-type:application/json");
   client.println();
@@ -539,11 +535,15 @@ void httpGetInfo(WiFiClient client) {
 
   client.println("{"); // main {}
 
-  client.println("files : {["); // files {}
+  client.print("\"version\" : \"");
+  client.print(VERSION);
+  client.println("\",");
+
+  client.println("\"files\" : {["); // files {}
   File root = SPIFFS.open("/");
   File file = root.openNextFile();
   String sep = "";
-  while (file) {    
+  while (file) {
     client.print(sep);
     client.print("{\"name\" : \"");
     client.print(file.name());
