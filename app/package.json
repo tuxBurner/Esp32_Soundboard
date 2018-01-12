@@ -25,11 +25,12 @@
   "dependencies": {
     "cheerio": "^1.0.0-rc.2",
     "express": "^4.16.2",
+    "jquery": "^3.2.1",
     "materialize-css": "^0.100.2",
     "request": "^2.83.0",
     "winston": "^2.4.0"
   },
   "devDependencies": {
-    "nodemon": "^1.12.5"
+    "nodemon": "^1.14.10"
   }
 }

@@ -5,14 +5,13 @@ class Webserver extends BaseClass {
   constructor() {
     super();
 
-    this.logInfo('Starting Websrver');
+    this.logInfo('Starting Webserver');
 
     const express = require('express');
 
     this.expApp = require('express')();
 
     this.myInstantsProvider = require('./MyInstantsProvider');
-
 
     this._declareExpressUses(express);
 
@@ -22,6 +21,7 @@ class Webserver extends BaseClass {
     this.expApp.listen(this.config.webserverPort, function() {
       instance.logInfo('listens on *:' + instance.config.webserverPort);
     });
+    
 
     // when the user wants to search myinstants.com
     this.expApp.get("/myinstants", function(req, res) {
@@ -40,6 +40,8 @@ class Webserver extends BaseClass {
   _declareExpressUses(express) {
     this.expApp.use('/', express.static(__dirname + '/../web'));
     this.expApp.use('/materialize', express.static('./node_modules/materialize-css/dist'));
+    this.expApp.use('/jquery', express.static('./node_modules/jquery/dist'));
+    this.expApp.use('/config.json', express.static('./config.json'));
 
   }
 

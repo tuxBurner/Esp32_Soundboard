@@ -1,20 +1,51 @@
 {
-  "webserverPort" : 8080,
-  "esp32Ip" : "192.168.0.116",
-  "mp3FilesFolder" : "./sounds",
-  "buttonsMapping" : {
-    "sheep" : 1,
-    "dog" : 2,
-    "cat" : 3,
-    "horse" : 4,
-    "chicken" : 5,
-    "pig" : 6,
-    "cow" : 7,
-    "duck" : 8,
-    "bell" : 9 ,
-    "purple square" : 11,
-    "red square" : 12
-  }
-
-
+  "webserverPort": 8080,
+  "esp32Ip": "192.168.0.116",
+  "mp3FilesFolder": "./sounds",
+  "buttonsMapping": [
+    {
+      "name": "sheep",
+      "espBtn": 1
+    },
+    {
+      "name": "dog",
+      "espBtn": 2
+    },
+    {
+      "name": "cat",
+      "espBtn": 3
+    },
+    {
+      "name": "horse",
+      "espBtn": 4
+    },
+    {
+      "name": "chicken",
+      "espBtn": 5
+    },
+    {
+      "name": "pig",
+      "espBtn": 6
+    },
+    {
+      "name": "cow",
+      "espBtn": 7
+    },
+    {
+      "name": "duck",
+      "espBtn": 8
+    },
+    {
+      "name": "bell",
+      "espBtn": 9
+    },
+    {
+      "name": "purple square",
+      "espBtn": 11
+    },
+    {
+      "name": "red square",
+      "espBtn": 12
+    }
+  ]
 }

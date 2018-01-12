@@ -537,6 +537,7 @@ void httpPlaySound(WiFiClient client, String fileToPlay) {
 
   client.println(httpHeaderOk);
   client.println("Content-type: text/html");
+  client.println("Access-Control-Allow-Origin: *");
   client.println();
   client.println("Playing sound: " + fileToPlay);
   client.println();
@@ -592,6 +593,7 @@ void httpUPloadFinished(WiFiClient client, String uploadedFile) {
 void httpGetInfo(WiFiClient client) {
   client.println(httpHeaderOk);
   client.println("Content-type:application/json");
+  client.println("Access-Control-Allow-Origin: *");
   client.println();
 
 
@@ -624,7 +626,7 @@ void httpGetInfo(WiFiClient client) {
   client.println("\",");
 
 
-  client.println("\"files\" : {["); // files {}
+  client.println("\"files\" : ["); // files {}
   File root = SPIFFS.open("/", FILE_READ);
   File file = root.openNextFile();
   String sep = "";
@@ -632,7 +634,7 @@ void httpGetInfo(WiFiClient client) {
     client.print(sep);
     client.print("{\"name\" : \"");
     client.print(file.name());
-    client.print("\"\"size\": ");
+    client.print("\",\"size\": ");
     client.print(file.size());
     client.println("}");
     file.close();
@@ -642,7 +644,7 @@ void httpGetInfo(WiFiClient client) {
   }
   root.close();
 
-  client.println("]}"); // eo file {}
+  client.println("]"); // eo file {}
 
   client.println("}"); // eo main {}
   client.println();

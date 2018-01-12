@@ -27,6 +27,9 @@ function play(url) {
   request.send();
 }
 
-$(function() {
 
+let espSoundBoard;
+
+$(function() {
+  espSoundBoard = new EspSoundBoard();
 });
