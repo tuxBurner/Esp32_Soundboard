@@ -284,10 +284,6 @@ httpClientAction_t httpClientAction = NONE;
 const String httpHeaderOk = "HTTP/1.1 200 Ok";
 const String httpHeaderFailure = "HTTP/1.1 404 Not Found";
 
-#define UPL_MAX_SIZE 65535
-char uplBuf[UPL_MAX_SIZE];
-int uplPos = 0;
-
 void httpServerLoop() {
   // do we have a new client ?
   WiFiClient client = httpServer.available();
@@ -310,21 +306,16 @@ void httpServerLoop() {
   // some data we can handle after parsinf the request for example what file to play
   String getDataToHandle = "";
 
+  File uplFile;
 
   while (client.connected()) {            // loop while the client's connected
     if (client.available()) {             // if there's bytes to read from the client,
       char c = client.read();             // read a byte, then
 
-      // read the upload data to the buffer
+
+      // when we want to write the data write it to the file
       if (httpClientAction == UPLOAD_DATA_START) {
-        if (uplPos < UPL_MAX_SIZE) {
-          uplBuf[uplPos] = c;
-          uplPos++;
-        } else {
-          dbg.print("Http Upload", "File is bigger than the allowed: %d", UPL_MAX_SIZE);
-          httpClientAction = FAILURE;
-          getDataToHandle = "File to big.";
-        }
+        uplFile.write(c);
       }
 
       if (c == '\n') {                    // if the byte is a newline character
@@ -380,7 +371,6 @@ void httpServerLoop() {
         // client wants to upload a file
         if (currentLine.startsWith("POST /upload") && httpClientAction == NONE) { // upload initialized
           httpClientAction = UPLOAD_INIT;
-          uplPos = 0;
         }
 
         // client wants to upload a file and we found a boundary
@@ -401,6 +391,7 @@ void httpServerLoop() {
         if (currentLine.startsWith("Content-Disposition: form-data; name=\"file\"; filename=") && httpClientAction == UPLOAD_BOUNDARY_FOUND) {
           getDataToHandle = currentLine.substring(55, currentLine.length() - 1);
           dbg.print("Http Upload", "Filename is: %s", getDataToHandle.c_str());
+          uplFile = httpStartUpload(getDataToHandle);
           httpClientAction = UPLOAD_FILE_NAME_FOUND;
         }
 
@@ -414,8 +405,8 @@ void httpServerLoop() {
         // no more data to read
         if (currentLine.startsWith(uploadBoundary) && httpClientAction == UPLOAD_DATA_START) {
           dbg.print("Http Upload", "Found boundary end in request: %s", uploadBoundary.c_str());
-          // remove the boundary from the content by resetting the bufPos
-          uplPos -= currentLine.length() + 4;
+          //uplFile.flush();
+          uplFile.close();
           httpClientAction = UPLOAD_DATA_END;
         }
 
@@ -462,8 +453,7 @@ void httpServerLoop() {
       }
 
       if (httpClientAction == RESTART) {
-        dbg.print("Main", "Client wants to restart the board");
-        ESP.restart();
+        httpRestart(client);
       }
 
       break; // exit the main client loop
@@ -544,45 +534,64 @@ void httpPlaySound(WiFiClient client, String fileToPlay) {
 }
 
 /**
-   When the upload was a success
+   Client wants to restart the esp
 */
-void httpUPloadFinished(WiFiClient client, String uploadedFile) {
+void httpRestart(WiFiClient client) {
 
+  dbg.print("Main", "Client wants to restart the board");
+
+  client.println(httpHeaderOk);
+  client.println("Content-type: text/html");
+  client.println("Access-Control-Allow-Origin: *");
+  client.println();
+  client.println("Restarting.");
+  client.println();
+
+  client.stop();
+
+  delay(1000);
+
+  ESP.restart();
+}
+
+/**
+   Is called when the upload begins.
+   Removes th old file and opens the new file for writing
+*/
+File httpStartUpload(String uploadedFile) {
   // write the file
   String path = "/" + uploadedFile;
 
   // Remove old file
-  if (SPIFFS.exists(path) == true) {
+  /*if (SPIFFS.exists(path) == true) {
     dbg.print("File", "Removing old file: %s", path.c_str());
     SPIFFS.remove(path);
-  }
-
-
+  }*/
 
   SPIFFS.end();
+  delay(1000);
   SPIFFS.begin(true);
 
-
-  dbg.print("File", "Open file to write: %s (%d)", path.c_str(), uplPos);
+  dbg.print("File", "Open file to write: %s", path.c_str());
   static File file = SPIFFS.open(path, FILE_WRITE);
 
-  for (int i = 0; i < uplPos; i++) {
-    file.write(uplBuf[i]);
-  }
-  file.flush();
-  file.close();
+  return file;
+}
 
 
-
-  dbg.print("File", "Done writing: %s", path.c_str());
-
+/**
+   When the upload was a success
+*/
+void httpUPloadFinished(WiFiClient client, String uploadedFile) {
+  dbg.print("File", "Done writing: %s", uploadedFile.c_str());
 
   client.println(httpHeaderOk);
   client.println("Content-type:text/html");
   client.println();
-  client.print("Uploaded file: " + uploadedFile);
+
+  client.print("{\"name\": \"" + uploadedFile + "\",");
   client.print("size: ");
-  client.println(uplPos);
+  //client.println(uplPos);
   client.println();
 }
 
@@ -596,16 +605,11 @@ void httpGetInfo(WiFiClient client) {
   client.println("Access-Control-Allow-Origin: *");
   client.println();
 
-
   client.println("{"); // main {}
 
   client.print("\"version\" : \"");
   client.print(VERSION);
   client.println("\",");
-
-  client.print("\"uploadMaxSize\" : ");
-  client.print(UPL_MAX_SIZE);
-  client.println(",");
 
   client.print("\"freeMem\" : ");
   client.print(ESP.getFreeHeap());
@@ -909,17 +913,17 @@ void handlebyte_ch(uint8_t b, bool force) {
 // Set force to true if chunkbuffer must be flushed.                                               *
 //**************************************************************************************************
 void handlebyte(uint8_t b, bool force) {
-  static uint16_t  playlistcnt;                       // Counter to find right entry in playlist
-  static bool      firstmetabyte;                     // True if first metabyte(counter)
-  static int       LFcount;                           // Detection of end of header
+  //static uint16_t  playlistcnt;                       // Counter to find right entry in playlist
+  //static bool      firstmetabyte;                     // True if first metabyte(counter)
+  //static int       LFcount;                           // Detection of end of header
   static __attribute__((aligned(4))) uint8_t buf[32]; // Buffer for chunk
   static int       bufcnt = 0;                        // Data in chunk
   static bool      firstchunk = true;                 // First chunk as input
-  String           lcml;                              // Lower case metaline
-  String           ct;                                // Contents type
-  static bool      ctseen = false;                    // First line of header seen or not
-  int              inx;                               // Pointer in metaline
-  int              i;                                 // Loop control
+  //String           lcml;                              // Lower case metaline
+  //String           ct;                                // Contents type
+  //static bool      ctseen = false;                    // First line of header seen or not
+  //int              inx;                               // Pointer in metaline
+  //int              i;                                 // Loop control
 
   // Handle next byte of MP3/Ogg data
   if (datamode == DATA)  {
@@ -931,7 +935,7 @@ void handlebyte(uint8_t b, bool force) {
       {
         firstchunk = false;
         dbg.print("Sound" , "First chunk:");                 // Header for printout of first chunk
-        for (i = 0; i < 32; i += 8)              // Print 4 lines
+        for (int i = 0; i < 32; i += 8)              // Print 4 lines
         {
           dbg.print("Sound", "%02X %02X %02X %02X %02X %02X %02X %02X",
                     buf[i],   buf[i + 1], buf[i + 2], buf[i + 3],

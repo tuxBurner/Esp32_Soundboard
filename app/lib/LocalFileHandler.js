@@ -156,7 +156,7 @@ class LocalFileHandler extends BaseClass {
         instance.logError(errMsg, err);
         callBack(new Error(errMsg));
       } else {
-        instance.logInfo(`Successfully uploaded file: ${localFile} to: ${this.espUploadUrl}`)
+        instance.logInfo(`Successfully uploaded file: ${localFile} to: ${this.espUploadUrl}`, body);
         callBack();
       }
     });

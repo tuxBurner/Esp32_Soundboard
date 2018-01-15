@@ -176,6 +176,10 @@ class EspSoundBoard {
     $.get(`http://${this.config.config.esp32Ip}/play/${btnNr}`);
   }
 
+  restartEsp() {
+    $.get(`http://${this.config.config.esp32Ip}/restart`);
+  }
+
 
   /**
    * Calls the backend to upload the file to the esp
@@ -187,8 +191,13 @@ class EspSoundBoard {
     this.showBlockUi();
 
     $.get(url, () => {
-      $.unblockUI();
-      instance._init();
+
+      instance.restartEsp();
+
+      setTimeout(() => {
+        $.unblockUI();
+        instance._init();
+      },15000);
     });
     
   }
