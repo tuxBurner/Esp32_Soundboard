@@ -16,6 +16,9 @@ class EspSoundBoard {
     // the currently selected soundboard
     this.currentSoundboard = null;
 
+    // the current button to change
+    this.currentBtnToSet = null;
+
     // we need this for mp3 playing
     this.mp3Player = new Mp3Player();
   }
@@ -33,16 +36,12 @@ class EspSoundBoard {
     $('.modal').modal();
 
 
-    $('#localUrlToDownload').on('input', function() {
-      instance.localUrlInputChanged();
-    });
+    $('#localUrlToDownload').on('input', () => instance.localUrlInputChanged());
 
-    $('#localUrlPreListenBtn').on('click', function() {
-      instance.preListenToUrl();
-    });
+    $('#localUrlPreListenBtn').on('click', () => instance.preListenToUrl());
 
     // read the configuration from the backend
-    $.getJSON('./configuration', function(data) {
+    $.getJSON('./configuration', (data) => {
       instance.config = data;
 
       $('#boardSelector').empty();
@@ -68,8 +67,8 @@ class EspSoundBoard {
 
     $('#myinstants-autocomplete').materialize_autocomplete({
       limit: 20,
-      getData: function(value, callback) {
-        $.get(`myinstants?query=${value}`, function(backendData) {
+      getData: (value, callback) => {
+        $.get(`myinstants?query=${value}`, (backendData) => {
           callback(value, backendData);
         });
       },
@@ -85,7 +84,7 @@ class EspSoundBoard {
    * This is called when the input for setting a local url changed.
    */
   localUrlInputChanged() {
-    const currentVal =  $('#localUrlToDownload').val();
+    const currentVal = $('#localUrlToDownload').val();
 
     if(currentVal === '') {
       $('.localUrlBtn').addClass('disabled');
@@ -96,7 +95,7 @@ class EspSoundBoard {
   }
 
   preListenToUrl() {
-    const currentVal =  $('#localUrlToDownload').val();
+    const currentVal = $('#localUrlToDownload').val();
     if(currentVal === '') {
       return;
     }
@@ -111,8 +110,7 @@ class EspSoundBoard {
   _readInfoFromEsp32() {
 
     const instance = this;
-    $.getJSON(`http://${instance.config.config.esp32Ip}/info`, function(data) {
-
+    $.getJSON(`http://${instance.config.config.esp32Ip}/info`, (data) => {
       instance.esp32Config = data;
       instance._createSoundButtons();
     });
@@ -146,7 +144,7 @@ class EspSoundBoard {
 
       rowHtml.append(`<td>${playHtml}</td>`);
 
-      rowHtml.append(`<td><button class="waves-effect waves-light btn btn-small" onclick="espSoundBoard.displayChangeLocalFileModal(${mapping.espBtn});">Change</button></td>`);
+      rowHtml.append(`<td><button class="waves-effect waves-light btn btn-small" onclick="espSoundBoard.displayChangeLocalFileModal(${mapping.espBtn}, '${mapping.name}');">Change</button></td>`);
 
       const localFile = this.currentSoundboard.files.find(file => file.id === mapping.espBtn);
 
@@ -168,8 +166,30 @@ class EspSoundBoard {
     $.get(`http://${this.config.config.esp32Ip}/play/${btnNr}`);
   }
 
-  displayChangeLocalFileModal(btnNr) {
+
+  /**
+   * Sets the current button to set and opens the modal dialog.
+   * @param espBtn
+   * @param btnName
+   */
+  displayChangeLocalFileModal(espBtn, btnName) {
+
+    this.currentBtnToSet = {
+      espBtn: espBtn,
+      name: btnName
+    };
+
+    $('#localBtnNameToChange').text(btnName);
+
     $('#changeLocalFileModal').modal('open');
+  }
+
+  setNewLocalFile() {
+
+    const urlFromInput = $('#localUrlToDownload').val();
+    const url = `setNewLocalFile/${this.currentSoundboard.name}/${this.currentBtnToSet.espBtn}?url=${urlFromInput}`;
+
+    console.error(url);
   }
 
 }

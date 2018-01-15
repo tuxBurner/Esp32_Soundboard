@@ -65,14 +65,14 @@
 <!-- Modal Structure -->
 <div id="changeLocalFileModal" class="modal bottom-sheet">
     <div class="modal-content">
-        <h4>Change local file for button: TODO</h4>
+        <h4>Change local file for button: <span id="localBtnNameToChange"></span></h4>
 
         <div class="row">
             <div class="col s12">
                 <div class="row">
                     <div class="input-field col s12">
                         <i class="material-icons prefix">textsms</i>
-                        <input type="text" id="myinstants-autocomplete" class="autocomplete">
+                        <input type="text" id="myinstants-autocomplete" class="autocomplete"/>
                         <label for="myinstants-autocomplete">MyInstants.com</label>
                     </div>
                 </div>
@@ -81,13 +81,13 @@
 
         <div class="row">
             <div class="input-field col s9">
-                <input placeholder="Url to download" id="localUrlToDownload" type="text">
+                <input placeholder="Url to download" id="localUrlToDownload" type="text"/>
                 <label for="localUrlToDownload">Url:</label>
             </div>
 
             <div class="col s3">
-              <button class="btn localUrlBtn disabled" id="localUrlPreListenBtn">Play</button>
-              <button class="btn localUrlBtn disabled">Set</button>
+                <button class="btn localUrlBtn disabled" id="localUrlPreListenBtn">Play</button>
+                <button class="btn localUrlBtn disabled" onclick="espSoundBoard.setNewLocalFile()">Set</button>
             </div>
 
         </div>

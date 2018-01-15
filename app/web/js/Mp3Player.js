@@ -39,7 +39,7 @@ class Mp3Player {
 
     request.open('GET', url, true);
     request.responseType = 'arraybuffer';
-    request.onload = function() {
+    request.onload = () => {
       audioContext.decodeAudioData(request.response, function(buffer) {
         instance.mp3Source.buffer = buffer;
         instance.mp3Source.start(0);

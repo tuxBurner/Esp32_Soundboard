@@ -21,25 +21,25 @@ class Webserver extends BaseClass {
     const instance = this;
 
     // start the web server
-    this.expApp.listen(this.config.webserverPort, function() {
+    this.expApp.listen(this.config.webserverPort, () => {
       instance.logInfo('listens on *:' + instance.config.webserverPort);
     });
 
 
     // reads the current local files
-    this.expApp.get('/configuration', function(req, res) {
+    this.expApp.get('/configuration', (req, res) => {
 
       const localFiles = instance.localFileHandler.readSoundBoardFiles();
 
       let response = {
-        "config" : instance.config,
-        "soundBoards" : localFiles
+        "config": instance.config,
+        "soundBoards": localFiles
       };
       res.json(response);
     });
 
     // streams the given file to the user
-    this.expApp.get('/localFile/:sndBoard/:fileName', function(req,res) {
+    this.expApp.get('/localFile/:sndBoard/:fileName', (req, res) => {
       res.header('Content-Type', 'audio/mp3');
 
       const stream = instance.localFileHandler.getLocalFile(req.params.sndBoard, req.params.fileName);
@@ -49,7 +49,7 @@ class Webserver extends BaseClass {
     });
 
     // when the user wants to search myinstants.com
-    this.expApp.get('/myinstants', function(req, res) {
+    this.expApp.get('/myinstants', (req, res) => {
       //res.header('Content-Type', 'application/json; charset=utf-8');
       instance.myInstantsProvider.search(req.query.query, (myInstantsRes) => {
         res.json(myInstantsRes);
@@ -57,12 +57,14 @@ class Webserver extends BaseClass {
     });
 
     // when the user set an url and wants to pre listen it
-    this.expApp.get('/prelisten', function(req,res) {
+    this.expApp.get('/prelisten', (req, res) => {
       instance.logInfo(`User wants to listen to: ${req.query.url}`);
-      instance.https.get(req.query.url, function(response) {
+      instance.https.get(req.query.url, (response) => {
         response.pipe(res);
       });
+    });
 
+    this.expApp.get('/setNewLocalFile:sndBoard/:btnName', (req, res) => {
     });
 
   }
