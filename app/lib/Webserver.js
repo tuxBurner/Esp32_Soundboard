@@ -64,7 +64,10 @@ class Webserver extends BaseClass {
       });
     });
 
-    this.expApp.get('/setNewLocalFile:sndBoard/:btnName', (req, res) => {
+    this.expApp.get('/setNewLocalFile/:sndBoardName/:btnName', (req, res) => {
+      this.localFileHandler.writeLocalFileFromUrl(req.params.sndBoardName,req.params.btnName, req.query.url, () => {
+        res.send('Ok');
+      });
     });
 
   }

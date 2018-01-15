@@ -1,4 +1,5 @@
 const {BaseClass} = require('./BaseClass');
+const { URL } = require('url');
 
 class LocalFileHandler extends BaseClass {
 
@@ -6,6 +7,7 @@ class LocalFileHandler extends BaseClass {
     super();
 
     this.fs = require('fs');
+    this.https = require('https');
 
     this.logInfo('Starting LocalFileHandler');
     this.soundBoardFolder = `${this.config.mp3FilesFolder}/soundboards`;
@@ -80,6 +82,70 @@ class LocalFileHandler extends BaseClass {
     }
 
     return this.fs.createReadStream(filePath);
+  }
+
+  /**
+   * When a current file exists remove it and download the data from the url
+   * @param boardName
+   * @param espBtnNr
+   * @param url
+   * @param callBack
+   */
+  writeLocalFileFromUrl(boardName, espBtnNr, url, callBack) {
+
+    this.logInfo(`Setting new file: ${espBtnNr} in sound board: ${boardName} with url: ${url}`);
+
+    const currentFile = this.findBoardFileByBoardAndBtnNr(boardName, espBtnNr);
+    if(currentFile !== undefined) {
+      const pathToDelete = `${this.soundBoardFolder}/${boardName}/${currentFile}`;
+      this.logInfo(`Removing old file: ${pathToDelete}`);
+      this.fs.unlinkSync(pathToDelete);
+    }
+
+    const myURL = new URL(url);
+
+    const splittedPath = myURL.pathname.split('/');
+    const mp3FileName = splittedPath[splittedPath.length-1];
+
+    const newFilePath = `${this.soundBoardFolder}/${boardName}/${espBtnNr}_${mp3FileName}`;
+
+    this.logDebug(`New file: ${espBtnNr} in sound board: ${boardName} name is: ${newFilePath}`);
+
+    const file = this.fs.createWriteStream(newFilePath);
+
+    const instance = this;
+    this.https.get(url, (response) => {
+      response.pipe(file);
+      file.on('finish', function() {
+        instance.logDebug(`Done downloading: ${url} to file: ${newFilePath}`);
+        file.close(callBack);  // close() is async, call cb after close completes.
+      });
+
+    }).on('error', function(err) {
+      instance.logError(`An error happened while downloading url: ${url} to: ${newFilePath}`,err);
+    });
+  }
+
+  /**
+   * Tries to locate the current file for the given board name and esp btn nr.
+   * @param boardName
+   * @param espBtnNr
+   */
+  findBoardFileByBoardAndBtnNr(boardName, espBtnNr) {
+
+    this.logInfo(`Looking for file: ${espBtnNr} in sound board: ${boardName}`);
+
+    const boardPath = `${this.soundBoardFolder}/${boardName}`;
+    const currentFile = this.fs.readdirSync(boardPath)
+      .find(file => file.startsWith(`${espBtnNr}_`) && file.endsWith('.mp3'));
+
+    if(currentFile === undefined) {
+      this.logInfo('File not found');
+    } else {
+      this.logInfo(`Found file: ${currentFile}`);
+    }
+
+    return currentFile;
   }
 
 }

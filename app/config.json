@@ -4,47 +4,47 @@
   "mp3FilesFolder": "./sounds",
   "buttonsMapping": [
     {
-      "name": "sheep",
+      "name": "Sheep",
       "espBtn": 1
     },
     {
-      "name": "dog",
+      "name": "Dog",
       "espBtn": 2
     },
     {
-      "name": "cat",
+      "name": "Cat",
       "espBtn": 3
     },
     {
-      "name": "horse",
+      "name": "Horse",
       "espBtn": 4
     },
     {
-      "name": "chicken",
+      "name": "Chicken",
       "espBtn": 5
     },
     {
-      "name": "pig",
+      "name": "Pig",
       "espBtn": 6
     },
     {
-      "name": "cow",
+      "name": "Cow",
       "espBtn": 7
     },
     {
-      "name": "duck",
+      "name": "Duck",
       "espBtn": 8
     },
     {
-      "name": "bell",
+      "name": "Bell",
       "espBtn": 9
     },
     {
-      "name": "purple square",
+      "name": "Purple square",
       "espBtn": 11
     },
     {
-      "name": "red square",
+      "name": "Red square",
       "espBtn": 12
     }
   ]

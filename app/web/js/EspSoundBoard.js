@@ -189,7 +189,10 @@ class EspSoundBoard {
     const urlFromInput = $('#localUrlToDownload').val();
     const url = `setNewLocalFile/${this.currentSoundboard.name}/${this.currentBtnToSet.espBtn}?url=${urlFromInput}`;
 
+
     console.error(url);
+
+    $.get(url, () => {});
   }
 
 }
