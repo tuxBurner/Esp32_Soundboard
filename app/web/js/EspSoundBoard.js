@@ -21,6 +21,9 @@ class EspSoundBoard {
 
     // we need this for mp3 playing
     this.mp3Player = new Mp3Player();
+
+    //$(document).ajaxStart(this.showBlockUi).ajaxStop($.unblockUI);
+
   }
 
   /**
@@ -148,7 +151,14 @@ class EspSoundBoard {
 
       const localFile = this.currentSoundboard.files.find(file => file.id === mapping.espBtn);
 
-      let localHtml = (localFile === undefined) ? 'No file' : `${localFile.name}   <button class="btn btn-small" onclick="espSoundBoard.mp3Player.playUrl('localFile/${this.currentSoundboard.name}/${localFile.id}_${localFile.name}.mp3')">Play</button>`;
+
+      let localHtml = 'No file';
+
+      if(localFile !== undefined) {
+        localHtml = `<button class="btn btn-small" onclick="espSoundBoard.mp3Player.playUrl('localFile/${this.currentSoundboard.name}/${localFile.id}_${localFile.name}.mp3');">Play</button> 
+                     <button class="btn btn-small" onclick="espSoundBoard.uploadToEsp(${mapping.espBtn});">Upload</button> 
+                     ${localFile.name}`;
+      }
 
 
       rowHtml.append(`<td>${localHtml}</td>`);
@@ -168,6 +178,22 @@ class EspSoundBoard {
 
 
   /**
+   * Calls the backend to upload the file to the esp
+   * @param espBtn
+   */
+  uploadToEsp(espBtn) {
+    const url = `uploadToEsp/${this.currentSoundboard.name}/${espBtn}`;
+    const instance = this;
+    this.showBlockUi();
+
+    $.get(url, () => {
+      $.unblockUI();
+      instance._init();
+    });
+    
+  }
+
+  /**
    * Sets the current button to set and opens the modal dialog.
    * @param espBtn
    * @param btnName
@@ -180,19 +206,38 @@ class EspSoundBoard {
     };
 
     $('#localBtnNameToChange').text(btnName);
+    $('#localUrlToDownload').val('');
 
     $('#changeLocalFileModal').modal('open');
   }
 
+  /**
+   * Sets a new local file in the current soundboard
+   */
   setNewLocalFile() {
 
     const urlFromInput = $('#localUrlToDownload').val();
     const url = `setNewLocalFile/${this.currentSoundboard.name}/${this.currentBtnToSet.espBtn}?url=${urlFromInput}`;
 
+    const instance = this;
 
-    console.error(url);
-
-    $.get(url, () => {});
+    this.showBlockUi();
+    $.get(url, () => {
+      instance._init();
+      $.unblockUI();
+    });
   }
 
+  /**
+   * Show the block ui layer
+   */
+  showBlockUi() {
+    $.blockUI({
+      message: `
+      <h4>Just a moment...</h4>
+      <div class="progress">
+        <div class="indeterminate"></div>
+      </div>`
+    });
+  }
 }

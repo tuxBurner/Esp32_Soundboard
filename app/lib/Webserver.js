@@ -64,10 +64,19 @@ class Webserver extends BaseClass {
       });
     });
 
+    // sets a new file from the given url
     this.expApp.get('/setNewLocalFile/:sndBoardName/:btnName', (req, res) => {
       this.localFileHandler.writeLocalFileFromUrl(req.params.sndBoardName,req.params.btnName, req.query.url, () => {
         res.send('Ok');
       });
+    });
+
+    // sends the file to the esp
+    this.expApp.get('/uploadToEsp/:sndBoardName/:btnName', (req, res) => {
+
+      this.localFileHandler()
+
+      res.send('Ok');
     });
 
   }
@@ -79,6 +88,7 @@ class Webserver extends BaseClass {
   _declareExpressUses(express) {
     this.expApp.use('/', express.static(__dirname + '/../web'));
     this.expApp.use('/materialize', express.static('./node_modules/materialize-css/dist'));
+    this.expApp.use('/blockui', express.static('./node_modules/blockui-npm'));
     this.expApp.use('/materialize-autocomplete', express.static('./node_modules/materialize-autocomplete'));
     this.expApp.use('/jquery', express.static('./node_modules/jquery/dist'));
   }

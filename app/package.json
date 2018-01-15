@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/tuxBurner/Esp32_Soundboard#readme",
   "dependencies": {
+    "blockui-npm": "^1.0.0",
     "cheerio": "^1.0.0-rc.2",
     "express": "^4.16.2",
     "jquery": "^3.2.1",

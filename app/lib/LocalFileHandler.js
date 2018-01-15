@@ -118,7 +118,7 @@ class LocalFileHandler extends BaseClass {
       response.pipe(file);
       file.on('finish', function() {
         instance.logDebug(`Done downloading: ${url} to file: ${newFilePath}`);
-        file.close(callBack);  // close() is async, call cb after close completes.
+        file.close(callBack);
       });
 
     }).on('error', function(err) {
