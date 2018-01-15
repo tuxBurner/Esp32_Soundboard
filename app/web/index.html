@@ -9,6 +9,14 @@
     <!--Import materialize.css-->
     <link type="text/css" rel="stylesheet" href="materialize/css/materialize.min.css" media="screen,projection"/>
 
+    <style>
+        .btn-small {
+            height: 24px;
+            line-height: 24px;
+            padding: 0 0.5rem;
+        }
+    </style>
+
     <!--Let browser know website is optimized for mobile-->
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
@@ -26,19 +34,74 @@
 
 <!--<div class="container">-->
 
-    <div class="row">
+<div class="row">
 
-        <div class="collection" id="soundButtons">
-            
-        </div>
-        
+
+    <div class="input-field col s12">
+        <select id="boardSelector">
+        </select>
+        <label>Current Soundboard</label>
     </div>
+
+</div>
+
+<div class="row">
+    <table class="bordered striped">
+        <thead>
+        <tr>
+            <th>Button</th>
+            <th>Play on ESP</th>
+            <th colspan="2">Local File</th>
+        </tr>
+        </thead>
+
+        <tbody id="soundButtons">
+
+        </tbody>
+
+    </table>
+</div>
+
+<!-- Modal Structure -->
+<div id="changeLocalFileModal" class="modal bottom-sheet">
+    <div class="modal-content">
+        <h4>Change local file for button: TODO</h4>
+
+        <div class="row">
+            <div class="col s12">
+                <div class="row">
+                    <div class="input-field col s12">
+                        <i class="material-icons prefix">textsms</i>
+                        <input type="text" id="myinstants-autocomplete" class="autocomplete">
+                        <label for="myinstants-autocomplete">MyInstants.com</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="input-field col s9">
+                <input placeholder="Url to download" id="localUrlToDownload" type="text">
+                <label for="localUrlToDownload">Url:</label>
+            </div>
+
+            <div class="col s3">
+              <button class="btn localUrlBtn disabled" id="localUrlPreListenBtn">Play</button>
+              <button class="btn localUrlBtn disabled">Set</button>
+            </div>
+
+        </div>
+
+    </div>
+</div>
 
 <!--</div>-->
 
 <!--Import jQuery before materialize.js-->
 <script type="text/javascript" src="jquery/jquery.min.js"></script>
 <script type="text/javascript" src="materialize/js/materialize.min.js"></script>
+<script type="text/javascript" src="materialize-autocomplete/jquery.materialize-autocomplete.min.js"></script>
+<script type="text/javascript" src="js/Mp3Player.js"></script>
 <script type="text/javascript" src="js/EspSoundBoard.js"></script>
 <script type="text/javascript" src="js/main.js"></script>
 

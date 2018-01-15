@@ -51,8 +51,8 @@ class MyInstantsProvider extends BaseClass {
           .replace(/play\('/g, '')
           .replace(/'\)/g, '');
         const item = {
-          title: title,
-          link: link
+          text: title,
+          id: link
         };
 
         result.push(item);

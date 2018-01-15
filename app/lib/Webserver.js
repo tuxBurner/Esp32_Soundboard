@@ -9,6 +9,9 @@ class Webserver extends BaseClass {
 
     const express = require('express');
 
+    this.https = require('https');
+
+
     this.expApp = require('express')();
     this.myInstantsProvider = require('./MyInstantsProvider');
     this.localFileHandler = require('./LocalFileHandler');
@@ -25,23 +28,41 @@ class Webserver extends BaseClass {
 
     // reads the current local files
     this.expApp.get('/configuration', function(req, res) {
-      res.header('Content-Type', 'application/json; charset=utf-8');
+
       const localFiles = instance.localFileHandler.readSoundBoardFiles();
 
       let response = {
         "config" : instance.config,
         "soundBoards" : localFiles
       };
+      res.json(response);
+    });
 
-      res.send(JSON.stringify(response));
+    // streams the given file to the user
+    this.expApp.get('/localFile/:sndBoard/:fileName', function(req,res) {
+      res.header('Content-Type', 'audio/mp3');
+
+      const stream = instance.localFileHandler.getLocalFile(req.params.sndBoard, req.params.fileName);
+
+      stream.pipe(res);
+      //res.send(stream);
     });
 
     // when the user wants to search myinstants.com
     this.expApp.get('/myinstants', function(req, res) {
-      res.header('Content-Type', 'application/json; charset=utf-8');
+      //res.header('Content-Type', 'application/json; charset=utf-8');
       instance.myInstantsProvider.search(req.query.query, (myInstantsRes) => {
-        res.send(JSON.stringify(myInstantsRes));
+        res.json(myInstantsRes);
       });
+    });
+
+    // when the user set an url and wants to pre listen it
+    this.expApp.get('/prelisten', function(req,res) {
+      instance.logInfo(`User wants to listen to: ${req.query.url}`);
+      instance.https.get(req.query.url, function(response) {
+        response.pipe(res);
+      });
+
     });
 
   }
@@ -53,6 +74,7 @@ class Webserver extends BaseClass {
   _declareExpressUses(express) {
     this.expApp.use('/', express.static(__dirname + '/../web'));
     this.expApp.use('/materialize', express.static('./node_modules/materialize-css/dist'));
+    this.expApp.use('/materialize-autocomplete', express.static('./node_modules/materialize-autocomplete'));
     this.expApp.use('/jquery', express.static('./node_modules/jquery/dist'));
   }
 
