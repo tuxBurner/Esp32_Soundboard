@@ -1,5 +1,5 @@
 const {BaseClass} = require('./BaseClass');
-const { URL } = require('url');
+const {URL} = require('url');
 
 class LocalFileHandler extends BaseClass {
 
@@ -8,9 +8,12 @@ class LocalFileHandler extends BaseClass {
 
     this.fs = require('fs');
     this.https = require('https');
+    this.request = require('request');
 
     this.logInfo('Starting LocalFileHandler');
     this.soundBoardFolder = `${this.config.mp3FilesFolder}/soundboards`;
+
+    this.espUploadUrl = `http://${this.config.esp32Ip}/upload`;
 
     if(this.fs.existsSync(this.config.mp3FilesFolder) === false) {
       this.logInfo(`Local main sound folder: ${this.config.mp3FilesFolder} does not exists creating it.`);
@@ -105,7 +108,7 @@ class LocalFileHandler extends BaseClass {
     const myURL = new URL(url);
 
     const splittedPath = myURL.pathname.split('/');
-    const mp3FileName = splittedPath[splittedPath.length-1];
+    const mp3FileName = splittedPath[splittedPath.length - 1];
 
     const newFilePath = `${this.soundBoardFolder}/${boardName}/${espBtnNr}_${mp3FileName}`;
 
@@ -116,14 +119,55 @@ class LocalFileHandler extends BaseClass {
     const instance = this;
     this.https.get(url, (response) => {
       response.pipe(file);
-      file.on('finish', function() {
+      file.on('finish', () => {
         instance.logDebug(`Done downloading: ${url} to file: ${newFilePath}`);
         file.close(callBack);
       });
 
-    }).on('error', function(err) {
-      instance.logError(`An error happened while downloading url: ${url} to: ${newFilePath}`,err);
+    }).on('error', (err) => {
+      const errMsg = `An error happened while downloading url: ${url} to: ${newFilePath}`;
+      instance.logError(errMsg, err);
+      throw new Error(errMsg);
     });
+  }
+
+  /**
+   * Uploads the file to the esp
+   * @param boardName
+   * @param espBtnNr
+   * @param callBack
+   */
+  uploadFileToEsp(boardName, espBtnNr, callBack) {
+    this.logInfo(`User wants to upload file: ${espBtnNr} from soundboard: ${boardName} to the esp.`);
+
+    const localFile = this.findBoardFileByBoardAndBtnNr(boardName, espBtnNr);
+
+    if(localFile === undefined) {
+      throw new Error('No file found');
+    }
+
+    this.logInfo(`Uploading file: ${localFile} to: ${this.espUploadUrl}`);
+
+    const instance = this;
+
+    const req = this.request.post(this.espUploadUrl, (err, resp, body) => {
+      if(err) {
+        const errMsg = `An error happened while uploading file: ${localFile} to esp: ${this.espUploadUrl}`;
+        instance.logError(errMsg, err);
+        callBack(new Error(errMsg));
+      } else {
+        instance.logInfo(`Successfully uploaded file: ${localFile} to: ${this.espUploadUrl}`)
+        callBack();
+      }
+    });
+
+    const form = req.form();
+    form.append('file', this.fs.createReadStream(`${this.soundBoardFolder}/${boardName}/${localFile}`), {
+      filename: `${espBtnNr}.mp3`,
+      contentType: 'audio/mp3'
+    });
+
+
   }
 
   /**

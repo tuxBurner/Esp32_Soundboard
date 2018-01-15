@@ -66,17 +66,22 @@ class Webserver extends BaseClass {
 
     // sets a new file from the given url
     this.expApp.get('/setNewLocalFile/:sndBoardName/:btnName', (req, res) => {
-      this.localFileHandler.writeLocalFileFromUrl(req.params.sndBoardName,req.params.btnName, req.query.url, () => {
+      this.localFileHandler.writeLocalFileFromUrl(req.params.sndBoardName, req.params.btnName, req.query.url, () => {
         res.send('Ok');
       });
     });
 
     // sends the file to the esp
     this.expApp.get('/uploadToEsp/:sndBoardName/:btnName', (req, res) => {
+      this.localFileHandler.uploadFileToEsp(req.params.sndBoardName, req.params.btnName, (err) => {
+        if(!err) {
+          res.send('Ok');
+        } else {
+          res.send('Err');
+        }
 
-      this.localFileHandler()
+      });
 
-      res.send('Ok');
     });
 
   }
