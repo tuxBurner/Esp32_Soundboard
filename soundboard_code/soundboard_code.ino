@@ -42,9 +42,11 @@ void        handlebyte_ch(uint8_t b, bool force);
 #define VERSION "Mi, 10 Jan 2018"
 
 // vs1053 pins
-#define VS1053_DCS    16
+//#define VS1053_DCS    16
+#define VS1053_DCS    22
 #define VS1053_CS     5
-#define VS1053_DREQ   4
+//#define VS1053_DREQ   4
+#define VS1053_DREQ   21
 #define SPI_SCK_PIN   18
 #define SPI_MISO_PIN  19
 #define SPI_MOSI_PIN  23
@@ -90,7 +92,7 @@ String           fileToPlay;                              // the file to play
 uint8_t          volume = 100;                             // the volume of the vs1053
 
 //int8_t           statusLedPin = LED_BUILTIN;
-int8_t           statusLedPin =
+int8_t           statusLedPin = 27;
 bool             wifiTurnedOn = false;
 bool             turnWifiOn = false;
 
@@ -105,20 +107,20 @@ struct soundPin_struct
 /**
    The actual button mapping
 */
-const int buttonNr = 12;
+const int buttonNr = 9;
 soundPin_struct soundPins[] = {
   {15, false, "wifi"}, // blue square
   {12, false, "1"}, // sheep
   {13, false, "2"}, // dog
   {14, false, "3"}, // cat
-  {27, false, "4"}, // horse
+  //{27, false, "4"}, // horse
   {26, false, "5"}, // chicken
   {25, false, "6"}, // pig
   {33, false, "7"}, // cow
   {32, false, "8"}, // duck
-  {22, false, "9"}, // bell
+  //{22, false, "9"}, // bell
   {3, false, "11"},  // purple square
-  {21, false, "12"} // red square
+  //{21, false, "12"} // red square
 };
 
 
@@ -524,6 +526,12 @@ void httpDeleteFile(WiFiClient client, String fileToDelete) {
 */
 void httpPlaySound(WiFiClient client, String fileToPlay) {
 
+  String path = "/" + fileToPlay + ".mp3";
+  if (SPIFFS.exists(path) == false) {
+    httpNotFound(client, "File: " + path + " not found");
+    return;
+  }
+
   // let the sound board play the requested file
   initStartSound(fileToPlay);
 
@@ -568,7 +576,7 @@ File httpStartUpload(String uploadedFile) {
   /*if (SPIFFS.exists(path) == true) {
     dbg.print("File", "Removing old file: %s", path.c_str());
     SPIFFS.remove(path);
-  }*/
+    }*/
 
   SPIFFS.end();
   delay(1000);
@@ -613,9 +621,9 @@ void httpGetInfo(WiFiClient client) {
   client.print(VERSION);
   client.println("\",");
 
-  client.print("\"name\" : ");
+  client.print("\"name\" : \"");
   client.print(NAME);
-  client.println(",");
+  client.println("\",");
 
   client.print("\"freeMem\" : ");
   client.print(ESP.getFreeHeap());

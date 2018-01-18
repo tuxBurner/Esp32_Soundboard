@@ -9,7 +9,7 @@ if(args[2] === undefined) {
 var request = require('request');
 var fs = require('fs');
 
-var req = request.post('http://192.168.0.116/upload', function (err, resp, body) {
+var req = request.post('http://192.168.0.124/upload', function (err, resp, body) {
   if (err) {
     console.log('Error!');
   } else {

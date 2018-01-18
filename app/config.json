@@ -1,6 +1,6 @@
 {
   "webserverPort": 8080,
-  "esp32Ip": "192.168.0.116",
+  "esp32Ip": "192.168.0.124",
   "mp3FilesFolder": "./sounds",
   "buttonsMapping": [
     {
