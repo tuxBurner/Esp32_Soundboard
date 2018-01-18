@@ -48,6 +48,7 @@ void        handlebyte_ch(uint8_t b, bool force);
 #define SPI_SCK_PIN   18
 #define SPI_MISO_PIN  19
 #define SPI_MOSI_PIN  23
+// XRST goes on EN or RST pin this must be high when esp is turned on
 
 #define NAME "SeppelsSB"
 
@@ -88,7 +89,8 @@ bool             filereq = false;                         // Request for new fil
 String           fileToPlay;                              // the file to play
 uint8_t          volume = 100;                             // the volume of the vs1053
 
-int8_t           statusLedPin = LED_BUILTIN;
+//int8_t           statusLedPin = LED_BUILTIN;
+int8_t           statusLedPin =
 bool             wifiTurnedOn = false;
 bool             turnWifiOn = false;
 
