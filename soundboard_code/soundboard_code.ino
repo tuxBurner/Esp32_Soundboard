@@ -42,15 +42,14 @@ void        handlebyte_ch(uint8_t b, bool force);
 #define VERSION "Mi, 10 Jan 2018"
 
 // vs1053 pins
-//#define VS1053_DCS    16
+// XRST goes on EN or RST pin this must be high when esp is turned on
 #define VS1053_DCS    22
 #define VS1053_CS     5
-//#define VS1053_DREQ   4
 #define VS1053_DREQ   21
 #define SPI_SCK_PIN   18
 #define SPI_MISO_PIN  19
 #define SPI_MOSI_PIN  23
-// XRST goes on EN or RST pin this must be high when esp is turned on
+
 
 #define NAME "SeppelsSB"
 
@@ -92,7 +91,7 @@ String           fileToPlay;                              // the file to play
 uint8_t          volume = 100;                             // the volume of the vs1053
 
 //int8_t           statusLedPin = LED_BUILTIN;
-int8_t           statusLedPin = 27;
+int8_t           statusLedPin = 16;
 bool             wifiTurnedOn = false;
 bool             turnWifiOn = false;
 
@@ -107,20 +106,22 @@ struct soundPin_struct
 /**
    The actual button mapping
 */
-const int buttonNr = 9;
+const int buttonNr = 12;
 soundPin_struct soundPins[] = {
-  {15, false, "wifi"}, // blue square
-  {12, false, "1"}, // sheep
-  {13, false, "2"}, // dog
+  {4, false, "11"},  // purple square
+  {0, false, "12"} // red square 
+  {2, false, "9"}, // bell
+
+  {13, false, "2"}, // dog 
+  {12, false, "1"}, // sheep 
   {14, false, "3"}, // cat
-  //{27, false, "4"}, // horse
+  {27, false, "4"}, // horse
+
+  {32, false, "8"}, // duck 
+  {33, false, "7"}, // cow 
+  {25, false, "6"}, // pig 
   {26, false, "5"}, // chicken
-  {25, false, "6"}, // pig
-  {33, false, "7"}, // cow
-  {32, false, "8"}, // duck
-  //{22, false, "9"}, // bell
-  {3, false, "11"},  // purple square
-  //{21, false, "12"} // red square
+  {1, false, "wifi"}, // blue square
 };
 
 
