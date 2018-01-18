@@ -611,6 +611,10 @@ void httpGetInfo(WiFiClient client) {
   client.print(VERSION);
   client.println("\",");
 
+  client.print("\"name\" : ");
+  client.print(NAME);
+  client.println(",");
+
   client.print("\"freeMem\" : ");
   client.print(ESP.getFreeHeap());
   client.println(",");
