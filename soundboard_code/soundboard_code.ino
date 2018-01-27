@@ -5,6 +5,7 @@
 //*************************************************************************************************
 
 
+
 // Wiring. Note that this is just an example.  Pins(except 18,19 and 23 of the SPI interface)
 // can be configured in the config page of the web interface.
 // ESP32dev Signal  Wired to VS1053
@@ -21,11 +22,6 @@
 // EN       -       pin 3 XRST
 
 
-//**************************************************************************************************
-// Forward declaration of various functions.                                                       *
-//**************************************************************************************************
-void        handlebyte_ch(uint8_t b, bool force);
-
 // Release Notes
 // 26-11-2017 Initial Code started
 // 16-12-2017 Got the Stuff Working
@@ -37,6 +33,7 @@ void        handlebyte_ch(uint8_t b, bool force);
 #include <SPIFFS.h>
 #include "DebugPrint.h"
 #include "Vs1053Esp32.h"
+#include "StatusLed.h"
 
 // defines and includes
 #define VERSION "Mi, 10 Jan 2018"
@@ -50,6 +47,13 @@ void        handlebyte_ch(uint8_t b, bool force);
 #define SPI_MISO_PIN  19
 #define SPI_MOSI_PIN  23
 
+// status led vars
+#define STATUS_LED_PIN 16
+
+StatusLed::ledConfig LED_SPEED_NORMAL = {2, 300, 100};
+StatusLed::ledConfig  LED_SPEED_WIFI_CONNECTED = {100, 2000, 100};
+StatusLed::ledConfig  LED_SPEED_WIFI_AP_MODE = {2, 10, 100};
+StatusLed::ledConfig  LED_SPEED_WIFI_CONNECTING = {100, 500, 100};
 
 #define NAME "SeppelsSB"
 
@@ -90,45 +94,43 @@ bool             filereq = false;                         // Request for new fil
 String           fileToPlay;                              // the file to play
 uint8_t          volume = 100;                             // the volume of the vs1053
 
-//int8_t           statusLedPin = LED_BUILTIN;
-int8_t           statusLedPin = 16;
 bool             wifiTurnedOn = false;
 bool             turnWifiOn = false;
 
 // pins for playing a mp3 via buttons
-struct soundPin_struct
-{
+struct soundPin_struct {
   int8_t gpio;                                  // Pin number
   bool curr;                                    // Current state, true = HIGH, false = LOW
   String sound;                                 // which sound nr to play or wifi when to handle wifi stuff
-} ;
+};
 
 /**
    The actual button mapping
 */
 const int buttonNr = 12;
 soundPin_struct soundPins[] = {
-  {4, false, "11"},  // purple square
-  {0, false, "12"} // red square 
-  {2, false, "9"}, // bell
+  {4, false, "1"},  // Sheep
+  {0, false, "3"}, // Cat
+  {2, false, "4"}, // Horse
 
-  {13, false, "2"}, // dog 
-  {12, false, "1"}, // sheep 
-  {14, false, "3"}, // cat
-  {27, false, "4"}, // horse
+  {13, false, "7"}, // Cow
+  {12, false, "5"}, // Chicken
+  {14, false, "8"}, // Duck
 
-  {32, false, "8"}, // duck 
-  {33, false, "7"}, // cow 
-  {25, false, "6"}, // pig 
-  {26, false, "5"}, // chicken
-  {1, false, "wifi"}, // blue square
+
+  {32, false, "wifi"}, // Blue Square
+  {33, false, "11"}, // Purple Square
+  {25, false, "9"}, // Bell
+  {26, false, "12"}, // Red Square
+  {3, false, "2"}, // Dog
+  {17, false, "6"} // Pig
 };
 
 
 // what time is the debounce delay ?
 unsigned long lastButtonCheck = 0;
 // what is the debounce delay
-unsigned long debounceDelay = 100;
+unsigned int debounceDelay = 100;
 
 // we need debug :)
 DebugPrint dbg;
@@ -138,6 +140,9 @@ Vs1053Esp32 vs1053player(VS1053_CS, VS1053_DCS, VS1053_DREQ);
 
 // the http server
 WiFiServer httpServer(80);
+
+// the status led handler
+StatusLed statusLed(STATUS_LED_PIN);
 
 
 //**************************************************************************************************
@@ -159,9 +164,7 @@ void setup() {
     dbg.print("Main", "SPIFFS Mount Failed");
   }
 
-  dbg.print("Led", "Setting status led on pin: %d", statusLedPin);
-  pinMode(statusLedPin, OUTPUT);
-
+  statusLed.setNewCfg(LED_SPEED_NORMAL);
   initSoundButtons();
 
   // Create ring buffer
@@ -172,7 +175,7 @@ void setup() {
   delay(10);
 
   wifiTurnedOn = false;
-  turnWifiOn = true;
+  turnWifiOn = false;
 }
 
 /**
@@ -182,6 +185,7 @@ void loop() {
   vs1053player.setVolume(volume);
   buttonLoop();
   mp3loop();
+  statusLed.callInloop();
   startWifi();
   httpServerLoop();
 }
@@ -193,21 +197,21 @@ void initHttpServer() {
   httpServer.begin();
 }
 
-
 //**************************************************************************************************
 //                              INIT THE SOUND BUTTONS                                             *
 //**************************************************************************************************
 void initSoundButtons() {
   // init sound button pins
   dbg.print("Button", "Initializing: Buttons");
-  int8_t buttonPin;
-  for (int i = 0 ; (buttonPin = soundPins[i].gpio) > 0 ; i++ ) {
+  for (int i = 0 ; i < buttonNr; i++ ) {
+    int8_t  buttonPin = soundPins[i].gpio;
     dbg.print("Button", "Initializing Button at pin: %d", buttonPin);
     pinMode(buttonPin, INPUT_PULLUP);
     soundPins[i].curr = digitalRead(buttonPin);
     dbg.print("Button", "Button at pin: %d is in state %d", buttonPin, soundPins[i].curr);
   }
 }
+
 
 //**************************************************************************************************
 //                                          START WIFI                                             *
@@ -221,14 +225,14 @@ void startWifi() {
     wifiTurnedOn = false;
     WiFi.enableAP(false);
     WiFi.enableSTA(false);
+
+    statusLed.setNewCfg(LED_SPEED_NORMAL);
     return;
   }
 
   if (!wifiTurnedOn && turnWifiOn) {
 
     dbg.print("Wifi", "Turning on wifi");
-
-
 
     if (WIFI_AP_MODE) {
       dbg.print("Wifi", "Trying to setup AP with name: %s and password: %s.", WIFI_AP_SSID, WIFI_AP_PASS);
@@ -241,16 +245,16 @@ void startWifi() {
       WiFi.begin(WIFI_SSID, WIFI_PASS);
       while (WiFi.status() != WL_CONNECTED) {
         delay(500);
-        digitalWrite(statusLedPin, true);
         wifiConnectionCount++;
         dbg.print("Wifi", "Waiting for wifi connection .");
-        digitalWrite(statusLedPin, false);
         if (wifiConnectionMaxCount == wifiConnectionCount) {
           dbg.print("Wifi", "Could not connect to wifi turning ap mode on");
           WIFI_AP_MODE = true;
           break;
         }
       }
+
+      statusLed.setNewCfg(LED_SPEED_WIFI_CONNECTED);
 
       wifiTurnedOn = true;
       dbg.print("Wifi", "Ip address of esp is %s", WiFi.localIP().toString().c_str());
@@ -259,8 +263,6 @@ void startWifi() {
     // start http server
     initHttpServer();
   }
-
-  digitalWrite(statusLedPin, wifiTurnedOn);
 }
 
 /**
@@ -688,11 +690,13 @@ bool openLocalFile(const char * path) {
 
   dbg.print("MP3", "Opening file %s", path);
 
-  mp3file = SPIFFS.open(path, FILE_READ);                           // Open the file
-  if (mp3file.size() == 0) {
+  if (SPIFFS.exists(path) == false) {
     dbg.print("MP3", "Error opening file %s", path);
     return false;
   }
+
+  mp3file = SPIFFS.open(path, FILE_READ);                           // Open the file
+
 
   return true;
 }
@@ -811,8 +815,6 @@ void mp3loop() {
     vs1053player.setVolume(0);                       // Mute
     vs1053player.stopSong();                            // Stop playing
     emptyring();                                        // Empty the ringbuffer
-    //TODO: check if nedded and if so enabel all outcommented lines
-    //metaint = 0;                                        // No metaint known now
     datamode = STOPPED;                                 // Yes, state becomes STOPPED
     delay(500);
   }
@@ -830,11 +832,13 @@ void mp3loop() {
   if (filereq) {
     filereq = false;
 
-    openLocalFile(fileToPlay.c_str());
+    bool fileExists = openLocalFile(fileToPlay.c_str());
+    if (fileExists == false) {
+      return;
+    }
 
     // set the mode to data
     datamode = DATA;
-
   }
 
 }

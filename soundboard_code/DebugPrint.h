@@ -3,7 +3,7 @@
 
 #include "Arduino.h"
 
-#define DEBUG_BUFFER_SIZE 130;
+#define DEBUG_BUFFER_SIZE 130
 
 class DebugPrint {
 
@@ -11,8 +11,8 @@ class DebugPrint {
     DebugPrint();
     char* print(const String domain, const char* format, ...);
 
-  private:
-    char sbuf[130];
+  private:  
+    char sbuf[DEBUG_BUFFER_SIZE];
     int _DEBUG = 1; // Debug on/off
 
 };
