@@ -109,7 +109,7 @@ struct soundPin_struct {
 */
 const int buttonNr = 12;
 soundPin_struct soundPins[] = {
-  {4, false, "1"},  // Sheep
+  {4, false, "6"},  // Pig
   {0, false, "3"}, // Cat
   {2, false, "4"}, // Horse
 
@@ -123,7 +123,7 @@ soundPin_struct soundPins[] = {
   {25, false, "9"}, // Bell
   {26, false, "12"}, // Red Square
   {3, false, "2"}, // Dog
-  {17, false, "6"} // Pig
+  {17, false, "1"} // Sheep
 };
 
 
@@ -240,6 +240,7 @@ void startWifi() {
       dbg.print("Wifi", "AP IP = 192.168.4.1");             // Address for AP
       delay(1000);
       wifiTurnedOn = true;
+      statusLed.setNewCfg(LED_SPEED_WIFI_AP_MODE);
     } else {
       dbg.print("Wifi", "Trying to setup wifi with ssid: %s and password: %s.", WIFI_SSID, WIFI_PASS);
       WiFi.begin(WIFI_SSID, WIFI_PASS);

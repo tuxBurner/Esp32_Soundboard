@@ -24,7 +24,7 @@ void StatusLed::callInloop() {
     return;
   }
 
-  _dbg.print("LED", "Update the LED %d", _currentLedValue);
+  //_dbg.print("LED", "Update the LED %d", _currentLedValue);
 
   // debounce time over
   _lastStatusLedCheck = millis();
