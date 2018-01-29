@@ -58,7 +58,7 @@ StatusLed::ledConfig  LED_SPEED_WIFI_CONNECTING = {100, 500, 100};
 #define NAME "SeppelsSB"
 
 // wifi settings
-bool WIFI_AP_MODE = true;
+bool WIFI_AP_MODE = false;
 #define WIFI_SSID "suckOnMe"
 #define WIFI_PASS "leatomhannes"
 #define WIFI_AP_SSID "soundboard"
@@ -120,7 +120,7 @@ soundPin_struct soundPins[] = {
   {14, false, "8"}, // Duck
 
 
-  {32, false, "wifi"}, // Blue Square
+  {32, false, "10"}, // Blue Square
   {33, false, "11"}, // Purple Square
   {25, false, "9"}, // Bell
   {26, false, "12"}, // Red Square
@@ -244,7 +244,7 @@ void startWifi() {
 
     lastWifiCheck = millis();
 
-    dbg.print("Wifi", "Waiting for wifi connection: %d of %d", wifiConnectionCount,wifiConnectionMaxCount);
+    dbg.print("Wifi", "Waiting for wifi connection: %d of %d", wifiConnectionCount, wifiConnectionMaxCount);
 
     if (WiFi.status() == WL_CONNECTED) {
       statusLed.setNewCfg(LED_SPEED_WIFI_CONNECTED);
@@ -737,30 +737,41 @@ void buttonLoop() {
   // debounce time over
   lastButtonCheck = millis();
 
+  bool oneButtonPressed = false;
+  String soundToPlay = "";
+
 
   int8_t buttonPin;
   for (int i = 0 ; i < buttonNr ; i++ ) {
 
     buttonPin = soundPins[i].gpio;
     // get the current state of the button
-    bool level = (digitalRead(buttonPin) == HIGH);
+    bool buttonIsHigh = (digitalRead(buttonPin) == HIGH);
 
     // Change seen?
-    if (level != soundPins[i].curr) {
+    if (buttonIsHigh != soundPins[i].curr) {
+
       // And the new level
-      soundPins[i].curr = level;
-      // HIGH to LOW change?
-      if (!level) {
-        if (soundPins[i].sound != "wifi") {
-          dbg.print("Button", "GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound.c_str());
-          initStartSound(soundPins[i].sound);
-        } else {
+      soundPins[i].curr = buttonIsHigh;
+
+      // Button is low well than it is pushed
+      if (buttonIsHigh == false) {
+
+        if(oneButtonPressed) {
           turnWifiOn = !turnWifiOn;
           dbg.print("Button", "GPIO_%02d is now LOW switching wifi to: %d", buttonPin, turnWifiOn);
+          return;
         }
-      }
-      return;
-    } // level off the button changed
+
+        dbg.print("Button", "GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound.c_str());
+        soundToPlay = soundPins[i].sound;
+        oneButtonPressed = true;
+      }      
+    } // level of the button changed
+
+    if (soundToPlay != "") {
+      initStartSound(soundToPlay);
+    }
   }
 }
 
