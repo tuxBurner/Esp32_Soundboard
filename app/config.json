@@ -46,6 +46,10 @@
     {
       "name": "Red square",
       "espBtn": 12
+    },
+    {
+      "name": "Blue square",
+      "espBtn": 10
     }
   ]
 }
