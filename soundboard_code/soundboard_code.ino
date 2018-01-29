@@ -58,7 +58,7 @@ StatusLed::ledConfig  LED_SPEED_WIFI_CONNECTING = {100, 500, 100};
 #define NAME "SeppelsSB"
 
 // wifi settings
-bool WIFI_AP_MODE = false;
+bool WIFI_AP_MODE = true;
 #define WIFI_SSID "suckOnMe"
 #define WIFI_PASS "leatomhannes"
 #define WIFI_AP_SSID "soundboard"
@@ -96,6 +96,8 @@ uint8_t          volume = 100;                             // the volume of the 
 
 bool             wifiTurnedOn = false;
 bool             turnWifiOn = false;
+bool             wifiTurningOn = false;
+unsigned long    lastWifiCheck = 0;
 
 // pins for playing a mp3 via buttons
 struct soundPin_struct {
@@ -226,7 +228,41 @@ void startWifi() {
     WiFi.enableAP(false);
     WiFi.enableSTA(false);
 
+    // reset wifi connecting
+    wifiTurningOn = false;
+    lastWifiCheck = 0;
+
     statusLed.setNewCfg(LED_SPEED_NORMAL);
+    return;
+  }
+
+  if (wifiTurningOn == true) {
+    // do nothing when the lastWifiCheck was not long enough ago
+    if (millis() - lastWifiCheck < 500) {
+      return;
+    }
+
+    lastWifiCheck = millis();
+
+    dbg.print("Wifi", "Waiting for wifi connection: %d of %d", wifiConnectionCount,wifiConnectionMaxCount);
+
+    if (WiFi.status() == WL_CONNECTED) {
+      statusLed.setNewCfg(LED_SPEED_WIFI_CONNECTED);
+      wifiTurnedOn = true;
+      dbg.print("Wifi", "Ip address of esp is %s", WiFi.localIP().toString().c_str());
+      // start http server
+      initHttpServer();
+      wifiTurningOn = false;
+      lastWifiCheck = 0;
+    } else {
+      wifiConnectionCount++;
+      if (wifiConnectionMaxCount == wifiConnectionCount) {
+        dbg.print("Wifi", "Could not connect to wifi turning ap mode on");
+        WIFI_AP_MODE = true;
+        wifiTurningOn = false;
+        lastWifiCheck = 0;
+      }
+    }
     return;
   }
 
@@ -241,28 +277,14 @@ void startWifi() {
       delay(1000);
       wifiTurnedOn = true;
       statusLed.setNewCfg(LED_SPEED_WIFI_AP_MODE);
+      // start http server
+      initHttpServer();
     } else {
       dbg.print("Wifi", "Trying to setup wifi with ssid: %s and password: %s.", WIFI_SSID, WIFI_PASS);
       WiFi.begin(WIFI_SSID, WIFI_PASS);
-      while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        wifiConnectionCount++;
-        dbg.print("Wifi", "Waiting for wifi connection .");
-        if (wifiConnectionMaxCount == wifiConnectionCount) {
-          dbg.print("Wifi", "Could not connect to wifi turning ap mode on");
-          WIFI_AP_MODE = true;
-          break;
-        }
-      }
-
-      statusLed.setNewCfg(LED_SPEED_WIFI_CONNECTED);
-
-      wifiTurnedOn = true;
-      dbg.print("Wifi", "Ip address of esp is %s", WiFi.localIP().toString().c_str());
+      statusLed.setNewCfg(LED_SPEED_WIFI_CONNECTING);
+      wifiTurningOn = true;
     }
-
-    // start http server
-    initHttpServer();
   }
 }
 
