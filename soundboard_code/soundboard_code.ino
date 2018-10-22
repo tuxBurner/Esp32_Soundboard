@@ -146,6 +146,12 @@ WiFiServer httpServer(80);
 // the status led handler
 StatusLed statusLed(STATUS_LED_PIN);
 
+// ### Task stuff ###
+TaskHandle_t Main_Task, Sound_Task;
+
+
+
+
 
 //**************************************************************************************************
 //                                           S E T U P                                             *
@@ -178,18 +184,70 @@ void setup() {
 
   wifiTurnedOn = false;
   turnWifiOn = false;
+
+  // pin main task to cpu 0
+  xTaskCreatePinnedToCore(
+    &mainTaskCode,
+    "mainTask",
+    1000,
+    NULL,
+    1,
+    &Main_Task,
+    0);
+  
+  delay(500);  // needed to start-up task1
+
+  // pin the sound task to cpu 0
+  xTaskCreatePinnedToCore(
+    &soundTaskCode,
+    "soundTask",
+    8192, //was 1000 ? tooked this from https://github.com/lexus2k/ssd1306/blob/master/examples/esp32_main.cpp   could be 10000 ?
+
+    NULL,
+    1,
+    &Sound_Task,
+    1);
 }
 
-/**
-   Main loop
-*/
+//**************************************************************************************************
+//                                           MAIN LOOP                                             *
+//**************************************************************************************************
+// Setup for the program.                                                                          *
+//**************************************************************************************************
 void loop() {
-  vs1053player.setVolume(volume);
+  /*vs1053player.setVolume(volume);
   buttonLoop();
   mp3loop();
   statusLed.callInloop();
   startWifi();
-  httpServerLoop();
+  httpServerLoop();*/
+}
+
+//**************************************************************************************************
+//                                           SOUND TASK                                            *
+//**************************************************************************************************
+// Setup for the program.                                                                          *
+//**************************************************************************************************
+void soundTaskCode(void * parameter ) {
+ for(;;) {
+   vs1053player.setVolume(volume);
+   mp3loop();
+ }
+}
+
+
+//**************************************************************************************************
+//                                           MAIN TASK                                             *
+//**************************************************************************************************
+// Setup for the program.                                                                          *
+//**************************************************************************************************
+void mainTaskCode(void * parameter ) {
+ for(;;) {
+   buttonLoop();
+   statusLed.callInloop();
+   startWifi();
+   httpServerLoop();
+ }
 }
 
 //**************************************************************************************************
