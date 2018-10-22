@@ -83,15 +83,44 @@ enum datamode_t {DATA = 1,        // State for datastream
                 };
 
 datamode_t       datamode;                                // State of datastream
+
+
+// new queue handling of data taken from edzelf esp32 radio
+#define QSIZ 400
+QueueHandle_t     dataqueue ;                            // Queue for mp3 datastream
+enum qdata_type { QDATA, QSTARTSONG, QSTOPSONG } ;    // datatyp in qdata_struct
+struct qdata_struct
+{
+  int datatyp ;                                       // Identifier
+  __attribute__((aligned(4))) uint8_t buf[32] ;       // Buffer for chunk
+};
+qdata_struct      outchunk;                             // Data to queue
+qdata_struct      inchunk;                              // Data from queue
+uint32_t          mp3filelength ;                        // File length (size)
+uint8_t           tmpbuff[6000] ;                        // Input buffer for mp3 or data stream 
+uint8_t*           outqp = outchunk.buf ;                 // Pointer to buffer in outchunk
+
+
+
+
+// #################################################################################################################
+// !!!! should be obsolete after task handling is implemented ?
+// #################################################################################################################
 uint16_t         rcount = 0;                              // Number of bytes in ringbuffer
 uint16_t         rbwindex = 0;                            // Fill pointer in ringbuffer
 uint8_t*         ringbuf;                                 // Ringbuffer for VS1053
 uint16_t         rbrindex = RINGBFSIZ - 1;                // Emptypointer in ringbuffer
+// #################################################################################################################
+// #################################################################################################################
 
-int              chunkcount = 0;                          // Counter for chunked transfer
-bool             chunked = false;                         // Station provides chunked transfer TODO: Not needed
+
+//int              chunkcount = 0;                          // Counter for chunked transfer
+//bool             chunked = false;                         // Station provides chunked transfer TODO: Not needed
+
+
 bool             filereq = false;                         // Request for new file to play TODO: can filereq and filetoplay be one ?
 String           fileToPlay;                              // the file to play
+
 uint8_t          volume = 100;                             // the volume of the vs1053
 
 bool             wifiTurnedOn = false;
@@ -147,7 +176,7 @@ WiFiServer httpServer(80);
 StatusLed statusLed(STATUS_LED_PIN);
 
 // ### Task stuff ###
-TaskHandle_t Main_Task, Sound_Task;
+TaskHandle_t Sound_Task;
 
 
 
@@ -185,20 +214,24 @@ void setup() {
   wifiTurnedOn = false;
   turnWifiOn = false;
 
-  // pin main task to cpu 0
+  // pin sound task to cpu 0
   xTaskCreatePinnedToCore(
-    &mainTaskCode,
-    "mainTask",
-    1000,
+    &soundTaskCode,
+    "soundTask",
+    1600,
     NULL,
-    1,
-    &Main_Task,
+    2,
+    &Sound_Task,
     0);
+
+
+  // init the data queue
+  dataqueue = xQueueCreate (QSIZ, sizeof(qdata_struct));
   
-  delay(500);  // needed to start-up task1
+  //delay(500);  // needed to start-up task1
 
   // pin the sound task to cpu 0
-  xTaskCreatePinnedToCore(
+  /*xTaskCreatePinnedToCore(
     &soundTaskCode,
     "soundTask",
     8192, //was 1000 ? tooked this from https://github.com/lexus2k/ssd1306/blob/master/examples/esp32_main.cpp   could be 10000 ?
@@ -206,7 +239,7 @@ void setup() {
     NULL,
     1,
     &Sound_Task,
-    1);
+    1);*/
 }
 
 //**************************************************************************************************
@@ -215,13 +248,13 @@ void setup() {
 // Setup for the program.                                                                          *
 //**************************************************************************************************
 void loop() {
-  delay(1000);
-  /*vs1053player.setVolume(volume);
+  
+  vs1053player.setVolume(volume);
   buttonLoop();
   mp3loop();
   statusLed.callInloop();
   startWifi();
-  httpServerLoop();*/
+  httpServerLoop();
 }
 
 //**************************************************************************************************
@@ -231,25 +264,40 @@ void loop() {
 //**************************************************************************************************
 void soundTaskCode(void * parameter ) {
  for(;;) {
-   vs1053player.setVolume(volume);
-   mp3loop();
+
+  if ( xQueueReceive ( dataqueue, &inchunk, 5 ) )
+    {
+      while ( !vs1053player.data_request() )                       // If FIFO is full..
+      {
+        vTaskDelay ( 1 ) ;                                          // Yes, take a break
+      }
+      switch ( inchunk.datatyp )                                    // What kind of chunk?
+      {
+        case QDATA:
+          vs1053player.playChunk( inchunk.buf,                    // DATA, send to player
+                                    sizeof(inchunk.buf));          
+          break ;
+        case QSTARTSONG:
+          vs1053player.startSong() ;                               // START, start player
+          break ;
+        case QSTOPSONG:
+          vs1053player.setVolume ( 0 ) ;                           // Mute
+          vs1053player.stopSong() ;                                // STOP, stop player          
+          vTaskDelay ( 500 / portTICK_PERIOD_MS ) ;                 // Pause for a short time
+          break ;
+        default:
+          break ;
+      }
+    }
+
+  
+   /*while (vs1053player.data_request() && ringavail()) {
+    // Yes, handle it
+    handlebyte_ch(getring(), false);
+  }*/
  }
 }
 
-
-//**************************************************************************************************
-//                                           MAIN TASK                                             *
-//**************************************************************************************************
-// Setup for the program.                                                                          *
-//**************************************************************************************************
-void mainTaskCode(void * parameter ) {
- for(;;) {
-   buttonLoop();
-   statusLed.callInloop();
-   startWifi();
-   httpServerLoop();
- }
-}
 
 //**************************************************************************************************
 //                              INIT THE HTTP SERVER                                               *
@@ -777,7 +825,11 @@ bool openLocalFile(const char * path) {
     return false;
   }
 
-  mp3file = SPIFFS.open(path, FILE_READ);                           // Open the file
+  // Open the file
+  mp3file = SPIFFS.open(path, FILE_READ);                           
+
+  // Read the length of the file
+  mp3filelength = mp3file.available() ;                         
 
 
   return true;
@@ -856,16 +908,44 @@ void initStartSound(String soundToPlay) {
 //**************************************************************************************************
 void mp3loop() {
 
-  static uint8_t  tmpbuff[RINGBFSIZ / 20];              // Input buffer for mp3 stream
-  uint32_t        rs;                                   // Free space in ringbuffer
-  uint32_t        av;                                   // Available in stream
+//  static uint8_t  tmpbuff[RINGBFSIZ / 20];              // Input buffer for mp3 stream
+//  uint32_t        rs;                                   // Free space in ringbuffer
+  uint32_t        av = 0;                               // Available in stream
   uint32_t        maxchunk;                             // Max number of bytes to read
+  uint32_t        qspace;                               // Free space in data queue
   int             res = 0;                              // Result reading from mp3 stream
 
   // Try to keep the ringbuffer filled up by adding as much bytes as possible
   // Test op playing
   if (datamode & (DATA)) {
+    
+    // Reduce byte count for this mp3loop()
+    maxchunk = sizeof(tmpbuff) ;                         
 
+    // Compute free space in data queue
+    qspace = uxQueueSpacesAvailable( dataqueue ) * sizeof(qdata_struct);
+
+    // Bytes left in file 
+    av = mp3filelength ; 
+    // Reduce byte count for this mp3loop()                              
+    if (av < maxchunk) {
+      maxchunk = av ;
+    }
+    // Enough space in queue?
+    if(maxchunk > qspace ) {
+      // No, limit to free queue space
+      maxchunk = qspace;                              
+    }
+
+    // Anything to read?
+    if ( maxchunk ) {
+      // Read a block of data
+      res = mp3file.read ( tmpbuff, maxchunk ) ;       
+      // Number of bytes left
+      mp3filelength -= res ;                           
+    }
+    
+/*
     // Get free ringbuffer space
     rs = ringspace();
 
@@ -889,14 +969,19 @@ void mp3loop() {
 
       // Transfer to ringbuffer
       putring(tmpbuff, res);
+    }*/
+     
+    for ( int i = 0 ; i < res ; i++ ) {
+      // Handle one byte 
+      handlebyte(tmpbuff[i], false) ;                     
     }
   }
 
   // Try to keep VS1053 filled
-  while (vs1053player.data_request() && ringavail()) {
+  /*while (vs1053player.data_request() && ringavail()) {
     // Yes, handle it
     handlebyte_ch(getring(), false);
-  }
+  }*/
 
   // STOP requested?
   if (datamode == STOPREQD) {
@@ -904,18 +989,22 @@ void mp3loop() {
 
     mp3file.close();
 
-    handlebyte_ch(0, true);                          // Force flush of buffer
-    vs1053player.setVolume(0);                       // Mute
-    vs1053player.stopSong();                            // Stop playing
-    emptyring();                                        // Empty the ringbuffer
+    // Reset datacount 
+    //datacount = 0 ;                                      
+    // and pointer
+    outqp = outchunk.buf;              
+    // Queue a request to stop the song
+    queuefunc (QSTOPSONG);                            
+
+    
     datamode = STOPPED;                                 // Yes, state becomes STOPPED
-    delay(500);
+    //delay(500); // NEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEED ? FOR WHAT ?
   }
 
   // Test op playing
   if (datamode & (DATA))  {
-    av = mp3file.available();                           // Bytes left in file
-    if ((av == 0) && (ringavail() == 0)) {        // End of mp3 data?
+    //av = mp3file.available();                           // Bytes left in file
+    if (av == 0) {        // End of mp3 data?
       datamode = STOPREQD;                              // End of local mp3-file detected
       filereq = false;
     }
@@ -930,10 +1019,28 @@ void mp3loop() {
       return;
     }
 
+    queuefunc (QSTOPSONG);                            
+
     // set the mode to data
     datamode = DATA;
   }
+}
 
+
+//**************************************************************************************************
+//                                      Q U E U E F U N C                                          *
+//**************************************************************************************************
+// Queue a special function for the play task.                                                     *
+//**************************************************************************************************
+void queuefunc (int func) {
+  // Special function to queue
+  qdata_struct     specchunk ;                          
+
+  // Put function in datatyp
+  specchunk.datatyp = func;                            
+
+  // Send to queue
+  xQueueSend (dataqueue,&specchunk, 200) ;           
 }
 
 //**************************************************************************************************
@@ -1012,7 +1119,7 @@ void emptyring() {
 // Chunked transfer encoding aware. Chunk extensions are not supported.                            *
 //**************************************************************************************************
 void handlebyte_ch(uint8_t b, bool force) {
-  static int  chunksize = 0;                         // Chunkcount read from stream
+  //static int  chunksize = 0;                         // Chunkcount read from stream
   handlebyte(b, force);                         // Normal handling of this byte
 }
 
@@ -1024,23 +1131,37 @@ void handlebyte_ch(uint8_t b, bool force) {
 // Note that the buffer the data chunk must start at an address that is a muttiple of 4.           *
 // Set force to true if chunkbuffer must be flushed.                                               *
 //**************************************************************************************************
-void handlebyte(uint8_t b, bool force) {
-  //static uint16_t  playlistcnt;                       // Counter to find right entry in playlist
-  //static bool      firstmetabyte;                     // True if first metabyte(counter)
-  //static int       LFcount;                           // Detection of end of header
-  static __attribute__((aligned(4))) uint8_t buf[32]; // Buffer for chunk
-  static int       bufcnt = 0;                        // Data in chunk
-  static bool      firstchunk = true;                 // First chunk as input
-  //String           lcml;                              // Lower case metaline
-  //String           ct;                                // Contents type
-  //static bool      ctseen = false;                    // First line of header seen or not
-  //int              inx;                               // Pointer in metaline
-  //int              i;                                 // Loop control
+void handlebyte(uint8_t b, bool force) {  
+//  static __attribute__((aligned(4))) uint8_t buf[32]; // Buffer for chunk
+//  static int       bufcnt = 0;                        // Data in chunk
+//  static bool      firstchunk = true;                 // First chunk as input
+  
 
   // Handle next byte of MP3/Ogg data
   if (datamode == DATA)  {
 
-    buf[bufcnt++] = b;                                // Save byte in chunkbuffer
+    *outqp++ = b;
+     // Buffer full?
+    if ( outqp == ( outchunk.buf + sizeof(outchunk.buf))) {
+      // Send data to playtask queue.  If the buffer cannot be placed within 200 ticks,
+      // the queue is full, while the sender tries to send more.  The chunk will be dis-
+      // carded it that case.
+      
+      // Send to queue
+      xQueueSend(dataqueue, &outchunk, 200);
+      // Item empty now
+      outqp = outchunk.buf;                           
+    }
+    /*if ( metaint )                                     // No METADATA on Ogg streams or mp3 files
+    {
+      if ( --datacount == 0 )                          // End of datablock?
+      {
+        datamode = METADATA ;
+        metalinebfx = -1 ;                             // Expecting first metabyte (counter)
+      }
+    }
+    return ;*/
+  /*  buf[bufcnt++] = b;                                // Save byte in chunkbuffer
     if (bufcnt == sizeof(buf) || force)            // Buffer full?
     {
       if (firstchunk)
@@ -1056,7 +1177,7 @@ void handlebyte(uint8_t b, bool force) {
       }
       vs1053player.playChunk(buf, bufcnt);         // Yes, send to player
       bufcnt = 0;                                     // Reset count
+      */
     }
-    return;
+    
   }
-}
