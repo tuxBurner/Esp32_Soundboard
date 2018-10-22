@@ -215,6 +215,7 @@ void setup() {
 // Setup for the program.                                                                          *
 //**************************************************************************************************
 void loop() {
+  delay(1000);
   /*vs1053player.setVolume(volume);
   buttonLoop();
   mp3loop();
