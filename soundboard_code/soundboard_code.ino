@@ -944,44 +944,12 @@ void mp3loop() {
       // Number of bytes left
       mp3filelength -= res ;                           
     }
-    
-/*
-    // Get free ringbuffer space
-    rs = ringspace();
-
-    // Need to fill the ringbuffer?
-    if (rs >= sizeof(tmpbuff)) {
-
-      // Reduce byte count for this mp3loop()
-      maxchunk = sizeof(tmpbuff);
-
-      // Bytes left in file
-      av = mp3file.available();
-      // Reduce byte count for this mp3loop()
-      if (av < maxchunk) {
-        maxchunk = av;
-      }
-      // Anything to read?
-      if (maxchunk) {
-        // Read a block of data
-        res = mp3file.read(tmpbuff, maxchunk);
-      }
-
-      // Transfer to ringbuffer
-      putring(tmpbuff, res);
-    }*/
      
     for ( int i = 0 ; i < res ; i++ ) {
       // Handle one byte 
       handlebyte(tmpbuff[i], false) ;                     
     }
   }
-
-  // Try to keep VS1053 filled
-  /*while (vs1053player.data_request() && ringavail()) {
-    // Yes, handle it
-    handlebyte_ch(getring(), false);
-  }*/
 
   // STOP requested?
   if (datamode == STOPREQD) {
@@ -994,16 +962,13 @@ void mp3loop() {
     // and pointer
     outqp = outchunk.buf;              
     // Queue a request to stop the song
-    queuefunc (QSTOPSONG);                            
-
-    
-    datamode = STOPPED;                                 // Yes, state becomes STOPPED
-    //delay(500); // NEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEED ? FOR WHAT ?
+    queuefunc(QSTOPSONG);                            
+    // Yes, state becomes STOPPED
+    datamode = STOPPED;                               
   }
 
   // Test op playing
   if (datamode & (DATA))  {
-    //av = mp3file.available();                           // Bytes left in file
     if (av == 0) {        // End of mp3 data?
       datamode = STOPREQD;                              // End of local mp3-file detected
       filereq = false;
@@ -1018,8 +983,6 @@ void mp3loop() {
     if (fileExists == false) {
       return;
     }
-
-    queuefunc (QSTOPSONG);                            
 
     // set the mode to data
     datamode = DATA;
@@ -1043,74 +1006,6 @@ void queuefunc (int func) {
   xQueueSend (dataqueue,&specchunk, 200) ;           
 }
 
-//**************************************************************************************************
-// Ringbuffer(fifo) routines.                                                                     *
-//**************************************************************************************************
-//**************************************************************************************************
-//                                          R I N G S P A C E                                      *
-//**************************************************************************************************
-uint16_t ringspace() {
-  // Free space available
-  return (RINGBFSIZ - rcount);
-}
-
-//**************************************************************************************************
-//                                        P U T R I N G                                            *
-//**************************************************************************************************
-// Version of putring to write a buffer to the ringbuffer.                                         *
-// No check on available space.  See ringspace().                                                  *
-//**************************************************************************************************
-void putring(uint8_t* buf, uint16_t len) {
-  uint16_t partl;                                                // Partial length to xfer
-
-  // anything to do?
-  if (len) {
-    // First see if we must split the transfer.  We cannot write past the ringbuffer end.
-    if ((rbwindex + len) >= RINGBFSIZ) {
-      partl = RINGBFSIZ - rbwindex;                              // Part of length to xfer
-      memcpy(ringbuf + rbwindex, buf, partl);                 // Copy next part
-      rbwindex = 0;
-      rcount += partl;                                           // Adjust number of bytes
-      buf += partl;                                              // Point to next free byte
-      len -= partl;                                              // Adjust rest length
-    }
-    // Rest to do?
-    if (len) {
-      memcpy(ringbuf + rbwindex, buf, len);                   // Copy full or last part
-      rbwindex += len;                                           // Point to next free byte
-      rcount += len;                                             // Adjust number of bytes
-    }
-  }
-}
-
-//**************************************************************************************************
-//                                         R I N G A V A I L                                       *
-//**************************************************************************************************
-inline uint16_t ringavail() {
-  return rcount;                     // Return number of bytes available for getring()
-}
-
-//**************************************************************************************************
-//                                        G E T R I N G                                            *
-//**************************************************************************************************
-uint8_t getring() {
-  // Assume there is always something in the bufferpace.  See ringavail()
-  if (++rbrindex == RINGBFSIZ)    // Increment pointer and
-  {
-    rbrindex = 0;                    // wrap at end
-  }
-  rcount--;                          // Count is now one less
-  return *(ringbuf + rbrindex);      // return the oldest byte
-}
-
-//**************************************************************************************************
-//                                       E M P T Y R I N G                                         *
-//**************************************************************************************************
-void emptyring() {
-  rbwindex = 0;                      // Reset ringbuffer administration
-  rbrindex = RINGBFSIZ - 1;
-  rcount = 0;
-}
 
 //**************************************************************************************************
 //                                   H A N D L E B Y T E _ C H                                     *
