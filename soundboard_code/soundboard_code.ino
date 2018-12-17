@@ -283,7 +283,7 @@ void soundTaskCode(void * parameter ) {
         case QSTOPSONG:
           vs1053player.setVolume ( 0 ) ;                           // Mute
           vs1053player.stopSong() ;                                // STOP, stop player          
-          vTaskDelay ( 500 / portTICK_PERIOD_MS ) ;                 // Pause for a short time
+          //vTaskDelay ( 500 / portTICK_PERIOD_MS ) ;                 // Pause for a short time
           break ;
         default:
           break ;
