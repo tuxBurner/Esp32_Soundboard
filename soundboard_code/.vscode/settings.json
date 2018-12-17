@@ -1,0 +1,6 @@
+{
+    "terminal.integrated.env.linux": {
+        "PATH": "/home/tuxburner/.platformio/penv/bin:/home/tuxburner/.platformio/penv:/home/tuxburner/.nvm/versions/node/v10.9.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/lib/jvm/default-java/bin:/usr/lib/jvm/default-java/db/bin:/usr/lib/jvm/default-java/jre/bin:/home/tuxburner/Android/Sdk/tools:/home/tuxburner/Android/Sdk/platform-tools",
+        "PLATFORMIO_CALLER": "vscode"
+    }
+}
