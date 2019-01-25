@@ -86,21 +86,6 @@ uint8_t*           outqp = outchunk.buf ;                 // Pointer to buffer i
 
 
 
-// #################################################################################################################
-// !!!! should be obsolete after task handling is implemented ?
-// #################################################################################################################
-uint16_t         rcount = 0;                              // Number of bytes in ringbuffer
-uint16_t         rbwindex = 0;                            // Fill pointer in ringbuffer
-uint8_t*         ringbuf;                                 // Ringbuffer for VS1053
-uint16_t         rbrindex = RINGBFSIZ - 1;                // Emptypointer in ringbuffer
-// #################################################################################################################
-// #################################################################################################################
-
-
-//int              chunkcount = 0;                          // Counter for chunked transfer
-//bool             chunked = false;                         // Station provides chunked transfer TODO: Not needed
-
-
 bool             filereq = false;                         // Request for new file to play TODO: can filereq and filetoplay be one ?
 String           fileToPlay;                              // the file to play
 
@@ -558,6 +543,7 @@ void setup() {
 
   httpServer = new HttpServer();
 
+
   // Initialize VS1053 player
   vs1053player.begin();
 
@@ -572,7 +558,6 @@ void setup() {
   // init the data queue
   dataqueue = xQueueCreate (QSIZ, sizeof(qdata_struct));
   
-  //delay(500);  // needed to start-up task1
 
   // pin sound task to cpu 0
   xTaskCreatePinnedToCore(
@@ -583,17 +568,6 @@ void setup() {
     2,
     &Sound_Task,
     0);
-
-  // pin the sound task to cpu 0
-  /*xTaskCreatePinnedToCore(
-    &soundTaskCode,
-    "soundTask",
-    8192, //was 1000 ? tooked this from https://github.com/lexus2k/ssd1306/blob/master/examples/esp32_main.cpp   could be 10000 ?
-
-    NULL,
-    1,
-    &Sound_Task,
-    1);*/
 }
 
 //**************************************************************************************************

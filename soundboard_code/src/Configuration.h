@@ -24,10 +24,4 @@
   #define WIFI_AP_SSID "soundboard"
   #define WIFI_AP_PASS "pass"
 
-  // Ringbuffer for smooth playing. 20000 bytes is 160 Kbits, about 1.5 seconds at 128kb bitrate.
-  // Use a multiple of 1024 for optimal handling of bufferspace.  See definition of tmpbuff.
-  //#define RINGBFSIZ 40960
-  #define RINGBFSIZ 256
-
-
 #endif;
