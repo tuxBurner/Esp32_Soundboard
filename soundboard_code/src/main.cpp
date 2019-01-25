@@ -144,7 +144,7 @@ soundPin_struct soundPins[] = {
 // what time is the debounce delay ?
 unsigned long lastButtonCheck = 0;
 // what is the debounce delay
-unsigned int debounceDelay = 100;
+unsigned int debounceDelay = 50;
 
 // the soundboard
 Vs1053Esp32 vs1053player(VS1053_CS, VS1053_DCS, VS1053_DREQ);
@@ -168,10 +168,6 @@ HttpServer *httpServer;
 // Set force to true if chunkbuffer must be flushed.                                               *
 //**************************************************************************************************
 void handlebyte(uint8_t b, bool force) {  
-//  static __attribute__((aligned(4))) uint8_t buf[32]; // Buffer for chunk
-//  static int       bufcnt = 0;                        // Data in chunk
-//  static bool      firstchunk = true;                 // First chunk as input
-  
 
   // Handle next byte of MP3/Ogg data
   if (datamode == DATA)  {
@@ -187,33 +183,7 @@ void handlebyte(uint8_t b, bool force) {
       xQueueSend(dataqueue, &outchunk, 200);
       // Item empty now
       outqp = outchunk.buf;                           
-    }
-    /*if ( metaint )                                     // No METADATA on Ogg streams or mp3 files
-    {
-      if ( --datacount == 0 )                          // End of datablock?
-      {
-        datamode = METADATA ;
-        metalinebfx = -1 ;                             // Expecting first metabyte (counter)
-      }
-    }
-    return ;*/
-  /*  buf[bufcnt++] = b;                                // Save byte in chunkbuffer
-    if (bufcnt == sizeof(buf) || force)            // Buffer full?
-    {
-      if (firstchunk)
-      {
-        firstchunk = false;
-        dbg.print("Sound" , "First chunk:");                 // Header for printout of first chunk
-        for (int i = 0; i < 32; i += 8)              // Print 4 lines
-        {
-          dbg.print("Sound", "%02X %02X %02X %02X %02X %02X %02X %02X",
-                    buf[i],   buf[i + 1], buf[i + 2], buf[i + 3],
-                    buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7]);
-        }
-      }
-      vs1053player.playChunk(buf, bufcnt);         // Yes, send to player
-      bufcnt = 0;                                     // Reset count
-      */
+    }    
     }
     
   }
@@ -225,8 +195,7 @@ void handlebyte(uint8_t b, bool force) {
 // Handle the next byte of data from server.                                                       *
 // Chunked transfer encoding aware. Chunk extensions are not supported.                            *
 //**************************************************************************************************
-void handlebyte_ch(uint8_t b, bool force) {
-  //static int  chunksize = 0;                         // Chunkcount read from stream
+void handlebyte_ch(uint8_t b, bool force) {  
   handlebyte(b, force);                         // Normal handling of this byte
 }
 
@@ -259,20 +228,13 @@ void soundTaskCode(void * parameter ) {
           vs1053player.startSong() ;                               // START, start player
           break ;
         case QSTOPSONG:
-          vs1053player.setVolume ( 0 ) ;                           // Mute
-          vs1053player.stopSong() ;                                // STOP, stop player          
-          //vTaskDelay ( 500 / portTICK_PERIOD_MS ) ;                 // Pause for a short time
+          //vs1053player.setVolume ( 0 ) ;                           // Mute
+          vs1053player.stopSong() ;                                // STOP, stop player                    
           break ;
         default:
           break ;
       }
     }
-
-  
-   /*while (vs1053player.data_request() && ringavail()) {
-    // Yes, handle it
-    handlebyte_ch(getring(), false);
-  }*/
  }
 }
 
@@ -486,8 +448,6 @@ void queuefunc (int func) {
 //**************************************************************************************************
 void mp3loop() {
 
-//  static uint8_t  tmpbuff[RINGBFSIZ / 20];              // Input buffer for mp3 stream
-//  uint32_t        rs;                                   // Free space in ringbuffer
   uint32_t        av = 0;                               // Available in stream
   uint32_t        maxchunk;                             // Max number of bytes to read
   uint32_t        qspace;                               // Free space in data queue
@@ -598,8 +558,6 @@ void setup() {
 
   httpServer = new HttpServer();
 
-  // Create ring buffer
-  ringbuf = (uint8_t*) malloc ( RINGBFSIZ ) ;
   // Initialize VS1053 player
   vs1053player.begin();
 
