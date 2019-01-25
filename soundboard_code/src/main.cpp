@@ -62,15 +62,18 @@ File             mp3file;                               // File containing mp3 o
 // Data mode the soundboard can currently have
 enum datamode_t {DATA = 1,        // State for datastream
                  STOPREQD = 2,  // Request for stopping current song
-                 STOPPED = 4    // State for stopped
+                 SOUNDFINISHED = 4, // The sound finished
+                 STOPPED = 8    // State for stopped
                 };
 
 datamode_t       datamode;                                // State of datastream
 
 
 // new queue handling of data taken from edzelf esp32 radio
-#define QSIZ 400
 QueueHandle_t     dataqueue ;                            // Queue for mp3 datastream
+
+QueueHandle_t     stopque;
+
 enum qdata_type { QDATA, QSTARTSONG, QSTOPSONG } ;    // datatyp in qdata_struct
 struct qdata_struct
 {
@@ -80,10 +83,10 @@ struct qdata_struct
 qdata_struct      outchunk;                             // Data to queue
 qdata_struct      inchunk;                              // Data from queue
 uint32_t          mp3filelength ;                        // File length (size)
-uint8_t           tmpbuff[6000] ;                        // Input buffer for mp3 or data stream 
+uint8_t           tmpbuff[BUFFER_SIZE] ;                        // Input buffer for mp3 or data stream 
 uint8_t*           outqp = outchunk.buf ;                 // Pointer to buffer in outchunk
 
-
+bool stopTaskMu;
 
 
 bool             filereq = false;                         // Request for new file to play TODO: can filereq and filetoplay be one ?
@@ -140,6 +143,7 @@ StatusLed statusLed(STATUS_LED_PIN);
 
 // ### Task stuff ###
 TaskHandle_t Sound_Task;
+TaskHandle_t Stop_Task;
 
 HttpServer *httpServer;
 
@@ -194,7 +198,20 @@ void handlebyte_ch(uint8_t b, bool force) {
 //**************************************************************************************************
 // Setup for the program.                                                                          *
 //**************************************************************************************************
-void soundTaskCode(void * parameter ) {
+
+void stopTaskCode(void *parameter) {
+
+  while(true) {
+    if(xQueueReceive(stopque, &stopTaskMu,5)) {
+      if(stopTaskMu == true) {
+        vs1053player.stopSong() ;
+        xQueueReset(dataqueue);
+      }
+    }
+  }
+}
+
+void soundTaskCode(void *parameter ) {
  for(;;) {
 
   if ( xQueueReceive ( dataqueue, &inchunk, 5 ) )
@@ -205,7 +222,7 @@ void soundTaskCode(void * parameter ) {
       }
       switch ( inchunk.datatyp )                                    // What kind of chunk?
       {
-        case QDATA:
+        case QDATA:          
           vs1053player.playChunk( inchunk.buf,                    // DATA, send to player
                                     sizeof(inchunk.buf));          
           break ;
@@ -475,17 +492,24 @@ void mp3loop() {
   }
 
   // STOP requested?
-  if (datamode == STOPREQD) {
+  if (datamode == STOPREQD || datamode == SOUNDFINISHED) {
     ESP_LOGD("Sound", "STOP requested");
 
     mp3file.close();
 
-    // Reset datacount 
-    //datacount = 0 ;                                      
-    // and pointer
-    outqp = outchunk.buf;              
-    // Queue a request to stop the song
-    queuefunc(QSTOPSONG);                            
+    // this happens when the user pushed a button and a file was still playing we need to do this over the stop task
+    // when not doing this over the stop task there may be still data in the sound task queue which is in front of the stop request
+    if(datamode == STOPREQD) {  
+      bool stop = true;
+      xQueueSend(stopque,&stop, pdMS_TO_TICKS(10));    
+    }  
+
+    // The file is finished playing and it should stop when all data has ben played
+    if(datamode == SOUNDFINISHED) {  
+      outqp = outchunk.buf;       
+      queuefunc(QSTOPSONG);                            
+    }
+
     // Yes, state becomes STOPPED
     datamode = STOPPED;                               
   }
@@ -493,7 +517,7 @@ void mp3loop() {
   // Test op playing
   if (datamode & (DATA))  {
     if (av == 0) {        // End of mp3 data?
-      datamode = STOPREQD;                              // End of local mp3-file detected
+      datamode = SOUNDFINISHED;                             // End of local mp3-file detected    
       filereq = false;
     }
   }
@@ -552,13 +576,13 @@ void setup() {
   wifiTurnedOn = false;
   turnWifiOn = false;
 
-  
-
-
   // init the data queue
   dataqueue = xQueueCreate (QSIZ, sizeof(qdata_struct));
-  
 
+  // init the stop queue
+  stopque = xQueueCreate(1,sizeof(bool));
+  
+  
   // pin sound task to cpu 0
   xTaskCreatePinnedToCore(
     &soundTaskCode,
@@ -568,6 +592,16 @@ void setup() {
     2,
     &Sound_Task,
     0);
+
+    // pin sound task to cpu 0
+  xTaskCreatePinnedToCore(
+    &stopTaskCode,
+    "stopTask",
+    1600,
+    NULL,
+    2,
+    &Stop_Task,
+    1);
 }
 
 //**************************************************************************************************

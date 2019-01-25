@@ -24,4 +24,7 @@
   #define WIFI_AP_SSID "soundboard"
   #define WIFI_AP_PASS "pass"
 
+  #define BUFFER_SIZE 60 // was 6000
+  #define QSIZ 400  // size of the data que
+
 #endif;
