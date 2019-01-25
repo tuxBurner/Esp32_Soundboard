@@ -32,7 +32,6 @@
 #include <WiFi.h>
 #include <FS.h>
 #include <SPIFFS.h>
-#include "DebugPrint.h"
 #include "Vs1053Esp32.h"
 #include "StatusLed.h"
 
@@ -163,9 +162,6 @@ soundPin_struct soundPins[] = {
 unsigned long lastButtonCheck = 0;
 // what is the debounce delay
 unsigned int debounceDelay = 100;
-
-// we need debug :)
-DebugPrint dbg;
 
 // the soundboard
 Vs1053Esp32 vs1053player(VS1053_CS, VS1053_DCS, VS1053_DREQ);
@@ -312,13 +308,13 @@ void initHttpServer() {
 //**************************************************************************************************
 void initSoundButtons() {
   // init sound button pins
-  dbg.print("Button", "Initializing: Buttons");
+  ESP_LOGI("Button", "Initializing: Buttons");
   for (int i = 0 ; i < buttonNr; i++ ) {
     int8_t  buttonPin = soundPins[i].gpio;
-    dbg.print("Button", "Initializing Button at pin: %d", buttonPin);
+    ESP_LOGI("Button", "Initializing Button at pin: %d", buttonPin);
     pinMode(buttonPin, INPUT_PULLUP);
     soundPins[i].curr = digitalRead(buttonPin);
-    dbg.print("Button", "Button at pin: %d is in state %d", buttonPin, soundPins[i].curr);
+    ESP_LOGD("Button", "Button at pin: %d is in state %d", buttonPin, soundPins[i].curr);
   }
 }
 
@@ -343,7 +339,7 @@ void initStartSound(String soundToPlay) {
 void startWifi() {
 
   if (!turnWifiOn && wifiTurnedOn) {
-    dbg.print("Wifi", "Turning off wifi");
+    ESP_LOGI("Wifi", "Turning off wifi");
     wifiTurnedOn = false;
     WiFi.enableAP(false);
     WiFi.enableSTA(false);
@@ -364,12 +360,12 @@ void startWifi() {
 
     lastWifiCheck = millis();
 
-    dbg.print("Wifi", "Waiting for wifi connection: %d of %d", wifiConnectionCount, wifiConnectionMaxCount);
+    ESP_LOGI("Wifi", "Waiting for wifi connection: %d of %d", wifiConnectionCount, wifiConnectionMaxCount);
 
     if (WiFi.status() == WL_CONNECTED) {
       statusLed.setNewCfg(LED_SPEED_WIFI_CONNECTED);
       wifiTurnedOn = true;
-      dbg.print("Wifi", "Ip address of esp is %s", WiFi.localIP().toString().c_str());
+      ESP_LOGI("Wifi", "Ip address of esp is %s", WiFi.localIP().toString().c_str());
       // start http server
       initHttpServer();
       wifiTurningOn = false;
@@ -377,7 +373,7 @@ void startWifi() {
     } else {
       wifiConnectionCount++;
       if (wifiConnectionMaxCount == wifiConnectionCount) {
-        dbg.print("Wifi", "Could not connect to wifi turning ap mode on");
+        ESP_LOGI("Wifi", "Could not connect to wifi turning ap mode on");
         WIFI_AP_MODE = true;
         wifiTurningOn = false;
         lastWifiCheck = 0;
@@ -388,19 +384,19 @@ void startWifi() {
 
   if (!wifiTurnedOn && turnWifiOn) {
 
-    dbg.print("Wifi", "Turning on wifi");
+    ESP_LOGI("Wifi", "Turning on wifi");
 
     if (WIFI_AP_MODE) {
-      dbg.print("Wifi", "Trying to setup AP with name: %s and password: %s.", WIFI_AP_SSID, WIFI_AP_PASS);
+      ESP_LOGI("Wifi", "Trying to setup AP with name: %s and password: %s.", WIFI_AP_SSID, WIFI_AP_PASS);
       WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASS);                        // This ESP will be an AP
-      dbg.print("Wifi", "AP IP = 192.168.4.1");             // Address for AP
+      ESP_LOGI("Wifi", "AP IP = 192.168.4.1");             // Address for AP
       delay(1000);
       wifiTurnedOn = true;
       statusLed.setNewCfg(LED_SPEED_WIFI_AP_MODE);
       // start http server
       initHttpServer();
     } else {
-      dbg.print("Wifi", "Trying to setup wifi with ssid: %s and password: %s.", WIFI_SSID, WIFI_PASS);
+      ESP_LOGI("Wifi", "Trying to setup wifi with ssid: %s and password: %s.", WIFI_SSID, WIFI_PASS);
       WiFi.begin(WIFI_SSID, WIFI_PASS);
       statusLed.setNewCfg(LED_SPEED_WIFI_CONNECTING);
       wifiTurningOn = true;
@@ -467,7 +463,7 @@ File httpStartUpload(String uploadedFile) {
   delay(1000);
   SPIFFS.begin(true);
 
-  dbg.print("File", "Open file to write: %s", path.c_str());
+  ESP_LOGD("File", "Open file to write: %s", path.c_str());
   static File file = SPIFFS.open(path, FILE_WRITE);
 
   return file;
@@ -479,7 +475,7 @@ File httpStartUpload(String uploadedFile) {
 void httpDownloadMp3(WiFiClient client, String fileToDownload) {
 
   String path = "/" + fileToDownload + ".mp3";
-  dbg.print("Http download", "Streaming file: %s to client", path.c_str());
+  ESP_LOGI("Http download", "Streaming file: %s to client", path.c_str());
 
   File file = SPIFFS.open(path, FILE_READ);
 
@@ -507,7 +503,7 @@ void httpDownloadMp3(WiFiClient client, String fileToDownload) {
 */
 void httpDeleteFile(WiFiClient client, String fileToDelete) {
   String path = "/" + fileToDelete;
-  dbg.print("Http download", "Delete file: %s", path.c_str());
+  ESP_LOGI("Http download", "Delete file: %s", path.c_str());
 
 
   if (SPIFFS.exists(path) == false) {
@@ -552,7 +548,7 @@ void httpPlaySound(WiFiClient client, String fileToPlay) {
 */
 void httpRestart(WiFiClient client) {
 
-  dbg.print("Main", "Client wants to restart the board");
+  ESP_LOGI("Main", "Client wants to restart the board");
 
   client.println(httpHeaderOk);
   client.println("Content-type: text/html");
@@ -576,7 +572,7 @@ void httpRestart(WiFiClient client) {
    When the upload was a success
 */
 void httpUPloadFinished(WiFiClient client, String uploadedFile) {
-  dbg.print("File", "Done writing: %s", uploadedFile.c_str());
+  ESP_LOGD("File", "Done writing: %s", uploadedFile.c_str());
 
   client.println(httpHeaderOk);
   client.println("Content-type:text/html");
@@ -662,7 +658,7 @@ void httpServerLoop() {
     return;
   }
 
-  dbg.print("Http", "new client connected %s", client.remoteIP().toString().c_str());
+  ESP_LOGD("Http", "new client connected %s", client.remoteIP().toString().c_str());
 
   String currentLine = "";                // make a String to hold incoming data from the client
 
@@ -692,7 +688,7 @@ void httpServerLoop() {
         // client wants to play a sound on the sound board
         if (currentLine.startsWith("GET /play/") && httpClientAction == NONE) {
 
-          dbg.print("Http", "Client wants to play a sound from the board");
+          ESP_LOGD("Http", "Client wants to play a sound from the board");
 
           // get rid of the HTTP
           getDataToHandle = currentLine;
@@ -703,7 +699,7 @@ void httpServerLoop() {
 
         // client wants to download mp3
         if (currentLine.startsWith("GET /download/") && httpClientAction == NONE) {
-          dbg.print("Http", "Client wants to download a sound from the board");
+          ESP_LOGD("Http", "Client wants to download a sound from the board");
 
           // get rid of the HTTP
           getDataToHandle = currentLine;
@@ -715,7 +711,7 @@ void httpServerLoop() {
 
         // client wants to delete a file
         if (currentLine.startsWith("GET /delete/") && httpClientAction == NONE) {
-          dbg.print("Http", "Client wants to delete a file from the board");
+          ESP_LOGD("Http", "Client wants to delete a file from the board");
 
           // get rid of the HTTP
           getDataToHandle = currentLine;
@@ -745,35 +741,35 @@ void httpServerLoop() {
         // client wants to upload a file and we found a boundary
         if (currentLine.startsWith("content-type: multipart/form-data; boundary=") && httpClientAction == UPLOAD_INIT) {
           uploadBoundary = "--" + currentLine.substring(44);
-          dbg.print("Http Upload", "Found boundary: %s", uploadBoundary.c_str());
+          ESP_LOGD("Http Upload", "Found boundary: %s", uploadBoundary.c_str());
           httpClientAction = UPLOAD_BOUNDARY_INIT;
 
         }
 
         // the upload boundary actualy exists in the request
         if (currentLine.startsWith(uploadBoundary) && httpClientAction == UPLOAD_BOUNDARY_INIT) {
-          dbg.print("Http Upload", "Found boundary in request: %s", uploadBoundary.c_str());
+          ESP_LOGD("Http Upload", "Found boundary in request: %s", uploadBoundary.c_str());
           httpClientAction = UPLOAD_BOUNDARY_FOUND;
         }
 
         // the upload file  name has to be parsed
         if (currentLine.startsWith("Content-Disposition: form-data; name=\"file\"; filename=") && httpClientAction == UPLOAD_BOUNDARY_FOUND) {
           getDataToHandle = currentLine.substring(55, currentLine.length() - 1);
-          dbg.print("Http Upload", "Filename is: %s", getDataToHandle.c_str());
+          ESP_LOGD("Http Upload", "Filename is: %s", getDataToHandle.c_str());
           uplFile = httpStartUpload(getDataToHandle);
           httpClientAction = UPLOAD_FILE_NAME_FOUND;
         }
 
         // after parsing the name and finding the first empty line we can start reading the data
         if (currentLine == "" && httpClientAction == UPLOAD_FILE_NAME_FOUND) {
-          dbg.print("Http Upload", "Starting reading the data");
+          ESP_LOGD("Http Upload", "Starting reading the data");
           httpClientAction = UPLOAD_DATA_START;
         }
 
 
         // no more data to read
         if (currentLine.startsWith(uploadBoundary) && httpClientAction == UPLOAD_DATA_START) {
-          dbg.print("Http Upload", "Found boundary end in request: %s", uploadBoundary.c_str());
+          ESP_LOGD("Http Upload", "Found boundary end in request: %s", uploadBoundary.c_str());
           //uplFile.flush();
           uplFile.close();
           httpClientAction = UPLOAD_DATA_END;
@@ -788,7 +784,7 @@ void httpServerLoop() {
 
         // debug request
         if (httpClientAction != UPLOAD_DATA_START && httpClientAction != FAILURE) {
-          dbg.print("Http", "Client send line: %s", currentLine.c_str());
+          ESP_LOGD("Http", "Client send line: %s", currentLine.c_str());
         }
 
         currentLine = ""; // empty the current line
@@ -831,7 +827,7 @@ void httpServerLoop() {
 
   // close the connection:
   client.stop();
-  dbg.print("Http", "Client Disconnected.");
+  ESP_LOGD("Http", "Client Disconnected.");
 }
 
 
@@ -841,10 +837,10 @@ void httpServerLoop() {
 */
 bool openLocalFile(const char * path) {
 
-  dbg.print("MP3", "Opening file %s", path);
+  ESP_LOGD("MP3", "Opening file %s", path);
 
   if (SPIFFS.exists(path) == false) {
-    dbg.print("MP3", "Error opening file %s", path);
+    ESP_LOGE("MP3", "Error opening file %s", path);
     return false;
   }
 
@@ -895,11 +891,11 @@ void buttonLoop() {
 
         if(oneButtonPressed) {
           turnWifiOn = !turnWifiOn;
-          dbg.print("Button", "GPIO_%02d is now LOW switching wifi to: %d", buttonPin, turnWifiOn);
+          ESP_LOGD("Button", "GPIO_%02d is now LOW switching wifi to: %d", buttonPin, turnWifiOn);
           return;
         }
 
-        dbg.print("Button", "GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound.c_str());
+        ESP_LOGD("Button", "GPIO_%02d is now LOW playing sound: %s", buttonPin, soundPins[i].sound.c_str());
         soundToPlay = soundPins[i].sound;
         oneButtonPressed = true;
       }      
@@ -984,7 +980,7 @@ void mp3loop() {
 
   // STOP requested?
   if (datamode == STOPREQD) {
-    dbg.print("Sound", "STOP requested");
+    ESP_LOGD("Sound", "STOP requested");
 
     mp3file.close();
 
@@ -1035,14 +1031,14 @@ void setup() {
   Serial.begin(115200);
   Serial.println();
 
-  dbg.print("Main", "Starting ESP32-soundboard Version %s...  Free memory %d", VERSION, ESP.getFreeHeap());
+  ESP_LOGI("Main", "Starting ESP32-soundboard Version %s...  Free memory %d", VERSION, ESP.getFreeHeap());
 
   // Init VSPI bus with default or modified pins
   SPI.begin(SPI_SCK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
 
   // start spiffs
   if (!SPIFFS.begin(true)) {
-    dbg.print("Main", "SPIFFS Mount Failed");
+    ESP_LOGE("Main", "SPIFFS Mount Failed");
   }
 
   statusLed.setNewCfg(LED_SPEED_NORMAL);

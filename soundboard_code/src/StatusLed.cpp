@@ -3,7 +3,7 @@
 #include "StatusLed.h"
 
 StatusLed::StatusLed(uint8_t ledPin) {
-  _dbg.print("Led", "Setting status led on pin: %d", ledPin);
+  ESP_LOGD("Led", "Setting status led on pin: %d", ledPin);
   _ledPin = ledPin;
   ledcSetup(LEDC_CHANNEL_0, LEDC_BASE_FREQ, LEDC_TIMER_13_BIT);
   ledcAttachPin(_ledPin, LEDC_CHANNEL_0);

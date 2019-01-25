@@ -3,7 +3,6 @@
 
 #include "Arduino.h"
 #include <SPI.h>
-#include "DebugPrint.h"
 
 class Vs1053Esp32 {
 
@@ -32,9 +31,7 @@ class Vs1053Esp32 {
     uint8_t _curvol;                        // Current volume setting 0..100%
     uint8_t _endFillByte;                   // Byte to send when stopping song
     const uint8_t _vs1053_chunk_size = 32;
-
-    DebugPrint _dbg;
-
+    
     SPISettings  _VS1053_SPI;               // SPI settings for this slave
     // SCI Register
     const uint8_t _SCI_MODE = 0x0;

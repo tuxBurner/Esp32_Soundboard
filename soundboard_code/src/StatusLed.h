@@ -5,7 +5,6 @@
 #define STATUSLED_h
 
 #include "Arduino.h"
-#include "DebugPrint.h"
 
 #define LEDC_CHANNEL_0 0
 #define LEDC_TIMER_13_BIT  13
@@ -38,7 +37,6 @@ class StatusLed {
 
   private:
     ledConfig _LED_CURRENT_CFG;
-    DebugPrint _dbg;
     uint8_t _ledPin;
     uint8_t _currentLedValue = 0;
     uint8_t _maxBrightness = 0;
